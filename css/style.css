@@ -1,0 +1,124 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    height: 100vh;
+    background-color: #ececec; /* darker variant of white */
+}
+
+/* PAGE LAYOUT */
+.page {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.converter {
+     width: min(440px, 92%);
+      min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+/* BRAND */
+.converter__brand {
+    text-align: center;
+    margin-bottom: 5px;
+    font-family: Verdana, Geneva, Tahoma, sans-serif;
+}
+
+.converter__title {
+    font-size: 2rem;
+    color: #000;
+}
+
+.converter__subtitle {
+    font-size: 1.2rem;
+    color: #000;
+}
+
+/* FROM / TO PANELS */
+.converter__panel {
+    background-color: #fff; /* lighter variant of white */
+    padding: 30px;
+    border: transparent;
+    border-radius: 13px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+}
+
+.converter__label {
+    margin-bottom: 10px;
+    font-size: 1.2rem;
+    color: #555;
+    font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif
+}
+
+/* INPUT + SELECT ROW */
+.converter__field {
+    display: flex;
+}
+
+.converter__input {
+    flex: 1;
+    border: none;
+    outline: none;
+    min-width: 0;
+    width: 100%;
+    font-size: 1rem;
+}
+
+.converter__select {
+    padding: 10px;
+    border-radius: 50px;
+    cursor: pointer;
+    border: 1px solid #ddd;
+    background-color: #fff;
+}
+
+/* SWAP BUTTON */
+.converter__swap {
+    position: relative;
+    height: 0;
+    z-index: 1;
+    display: flex;
+    justify-content: center;
+}
+
+.converter__swap-btn {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 60px;
+    height: 60px;
+    border: 4px solid #ececec;
+    border-radius: 50%;
+    background-color: #fff;
+    font-size: 1.5rem;
+    color: #333;
+    cursor: pointer;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+    transition: 0.25s ease;
+}
+.converter__swap-btn:hover {
+    background-color: #6c63ff;
+    color: #fff;
+    transform: translateY(-50%)
+               rotate(180deg);
+}
+
+#rate-info {
+    text-align: center;
+    font-size: 0.85rem;
+    color: #555;
+    overflow-wrap: anywhere;
+}
+
+#error-message {
+    text-align: center;
+    font-size: 0.9rem;
+    color: #c62828;
+}
