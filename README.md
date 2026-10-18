@@ -23,13 +23,14 @@ Open <http://localhost:8000> in a browser. Service workers are available on loca
 - Converts among the currencies in [`config/currencies.json`](config/currencies.json). That file supplies both the browser's selector and the server's validation and crypto identifiers.
 - Debounces amount input by 300 ms to avoid unnecessary conversion requests.
 - Caches each upstream API response on the server for 45 seconds in the system temporary directory.
-- Refreshes the selected pair on startup and every 30 minutes, and provides a manual refresh button.
+- Refreshes the complete rate table on startup and every 30 minutes, and provides a manual refresh button.
 - Supports a persisted light/dark theme.
 - Offers an animated light/dark switch and English/French interface; both preferences are saved locally.
-- Stores successful currency-pair rates locally and in the service worker cache so previously loaded pairs remain available offline.
+- Fetches and saves a full USD-based table for every configured currency, enabling offline cross-rate conversions. Rates are stored in IndexedDB (with a localStorage fallback), and the browser is asked to preserve that storage.
+- Provides **Export rates** and **Import rates** controls for downloading and restoring a `rates.json` backup.
 - Includes locally hosted Font Awesome Free 6.7.2 icons for offline use (see [`assets/fontawesome/LICENSE.txt`](assets/fontawesome/LICENSE.txt)).
 
-The rates shown offline retain their original update time. Automatic and manual refreshes request the latest available server-side rates; upstream data is fetched again once its 45-second cache expires. A saved rate is used when a refresh cannot reach the network.
+Offline rates retain their original date and are labeled `Offline - rates from <date>`. Automatic and manual refreshes request a complete rate table; upstream data is fetched again once its 45-second server cache expires. A saved table is used when a refresh cannot reach the network.
 
 ## API
 
@@ -44,6 +45,8 @@ The rates shown offline retain their original update time. Automatic and manual 
 ```
 
 Successful responses contain `from`, `to`, `rate`, `converted`, `date`, and the Unix timestamp `updatedAt`. Invalid amounts or unsupported currency codes return a JSON error and an appropriate HTTP status.
+
+`GET /api/rates-table.php` returns a USD-based rate for every configured currency, along with the rate date and Unix timestamp. The frontend uses this table to calculate cross rates and stores it for offline use.
 
 ## Deployment
 

@@ -78,14 +78,14 @@
               <span class="converter__currency-symbol" id="from-symbol" aria-hidden="true"></span>
               <label class="visually-hidden" for="amount" data-i18n="amountLabel">Amount in base currency</label>
               <input
-                type="number"
+                type="text"
                 name="amount"
                 id="amount"
                 placeholder="0.00"
                 data-i18n-placeholder="amountPlaceholder"
                 class="converter__input"
-                min="0"
-                step="any"
+                inputmode="decimal"
+                autocomplete="off"
               />
 
               <select
@@ -118,7 +118,8 @@
                 placeholder="0.00"
                 data-i18n-placeholder="resultPlaceholder"
                 class="converter__input"
-                readonly
+                inputmode="decimal"
+                autocomplete="off"
               />
 
               <select
@@ -129,6 +130,12 @@
                 data-i18n-aria-label="toCurrency"
               >
               </select>
+            </div>
+            <div class="quick-amounts" role="group" aria-label="Quick amounts" data-i18n-aria-label="quickAmounts">
+              <button type="button" class="chip" data-amount="10" data-side="to">10</button>
+              <button type="button" class="chip" data-amount="100" data-side="to">100</button>
+              <button type="button" class="chip" data-amount="500" data-side="to">500</button>
+              <button type="button" class="chip" data-amount="1000" data-side="to">1,000</button>
             </div>
             <p id="rate-info-to" class="converter__panel-rate" aria-live="polite"></p>
           </div>
@@ -148,10 +155,24 @@
             <span id="copy-label" data-i18n="copy">Copy result</span>
           </button>
         </div>
+        <div class="rate-backup" role="group" aria-label="Rate backup" data-i18n-aria-label="rateBackup">
+          <button type="button" id="export-rates" class="text-button" data-i18n="exportRates">Export rates</button>
+          <button type="button" id="import-rates" class="text-button" data-i18n="importRates">Import rates</button>
+          <input type="file" id="import-rates-file" accept="application/json,.json" hidden />
+        </div>
       </div>
     </main>
     <footer class="site-footer">
       <p data-i18n="footerNote">Indicative rates for information only. Sources: ExchangeRate-API and CoinGecko.</p>
+      <p class="site-footer__watermark">
+        <span>Made with love from Ghana</span>
+        <svg class="site-footer__flag" viewBox="0 0 30 20" role="img" aria-label="Ghana flag">
+          <rect width="30" height="20" fill="#006b3f" />
+          <rect width="30" height="13.34" fill="#fcd116" />
+          <rect width="30" height="6.67" fill="#ce1126" />
+          <path fill="#000" d="m15 6.6 1.1 2.25 2.48.36-1.79 1.75.42 2.47L15 12.27l-2.22 1.16.42-2.47-1.79-1.75 2.48-.36z" />
+        </svg>
+      </p>
     </footer>
     <aside id="error-notification" class="error-notification" role="alert" aria-live="assertive" hidden>
       <div class="error-notification__header">

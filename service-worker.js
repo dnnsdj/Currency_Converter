@@ -1,4 +1,4 @@
-const SHELL_CACHE = "currency-converter-shell-v7";
+const SHELL_CACHE = "currency-converter-shell-v9";
 const RATE_CACHE = "currency-converter-rates-v2";
 const APP_CACHE_PREFIX = "currency-converter-";
 

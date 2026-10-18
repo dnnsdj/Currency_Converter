@@ -203,3 +203,60 @@ function getExchangeRate($fromCurrency, $toCurrency, $currencyConfig)
         'updatedAt' => $rateUpdatedAt ?? time(),
     ];
 }
+
+function getExchangeRateTable($currencyConfig)
+{
+    $cryptoIds = [];
+    foreach ($currencyConfig as $currency) {
+        if (isset($currency['cryptoId']) && is_string($currency['cryptoId'])) {
+            $cryptoIds[$currency['code']] = $currency['cryptoId'];
+        }
+    }
+
+    $exchangeResponse = fetchJson('https://open.er-api.com/v6/latest/USD');
+    $exchangeData = $exchangeResponse['data'];
+    $fiatRates = $exchangeData['rates'] ?? null;
+    if (($exchangeData['result'] ?? null) !== 'success' ||
+        !is_array($fiatRates) ||
+        !isset($exchangeData['time_last_update_unix']) ||
+        !is_numeric($exchangeData['time_last_update_unix'])) {
+        throw new RuntimeException('The exchange-rate service returned invalid data.');
+    }
+
+    $rates = ['USD' => 1.0];
+    foreach ($currencyConfig as $currency) {
+        $code = $currency['code'];
+        if (isset($cryptoIds[$code])) {
+            continue;
+        }
+
+        $rate = $fiatRates[$code] ?? null;
+        if (!is_numeric($rate) || !is_finite((float) $rate) || (float) $rate <= 0) {
+            throw new RuntimeException('The exchange-rate service returned invalid data.');
+        }
+        $rates[$code] = (float) $rate;
+    }
+
+    $updatedAt = $exchangeResponse['updatedAt'];
+    if (count($cryptoIds) > 0) {
+        $cryptoIdsQuery = implode(',', array_unique(array_values($cryptoIds)));
+        $cryptoResponse = fetchJson(
+            'https://api.coingecko.com/api/v3/simple/price?ids=' . $cryptoIdsQuery . '&vs_currencies=usd'
+        );
+        foreach ($cryptoIds as $code => $coinId) {
+            $price = $cryptoResponse['data'][$coinId]['usd'] ?? null;
+            if (!is_numeric($price) || !is_finite((float) $price) || (float) $price <= 0) {
+                throw new RuntimeException('The exchange-rate service returned invalid data.');
+            }
+            $rates[$code] = 1 / (float) $price;
+        }
+        $updatedAt = min($updatedAt, $cryptoResponse['updatedAt']);
+    }
+
+    return [
+        'base' => 'USD',
+        'rates' => $rates,
+        'date' => gmdate('Y-m-d', (int) $exchangeData['time_last_update_unix']),
+        'updatedAt' => $updatedAt,
+    ];
+}

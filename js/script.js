@@ -17,17 +17,24 @@ const rateRow = document.querySelector(".converter__rate-row");
 const refreshButton = document.querySelector("#refresh-rates");
 const copyButton = document.querySelector("#copy-result");
 const copyLabel = document.querySelector("#copy-label");
+const exportRatesButton = document.querySelector("#export-rates");
+const importRatesButton = document.querySelector("#import-rates");
+const importRatesFile = document.querySelector("#import-rates-file");
 const themeLightButton = document.querySelector("#theme-light");
 const themeDarkButton = document.querySelector("#theme-dark");
 const languageSelect = document.querySelector("#language-select");
 const headerMenuToggle = document.querySelector("#header-menu-toggle");
 const headerTools = document.querySelector("#header-tools");
 const RATE_STORAGE_KEY = "currency-converter-rates";
+const RATE_TABLE_STORAGE_KEY = "currency-converter-rate-table";
+const RATE_DATABASE_NAME = "currency-converter";
+const RATE_DATABASE_STORE = "rate-tables";
 const CURRENCY_STORAGE_KEY = "currency-converter-currencies";
 const RATE_REFRESH_INTERVAL = 30 * 60 * 1000;
 const CONVERSION_API_URL = window.location.hostname === "dnnsdj.github.io"
     ? "https://currency-converter-api-nvun.onrender.com/api/convert.php"
     : "api/convert.php";
+const RATE_TABLE_API_URL = CONVERSION_API_URL.replace(/convert\.php$/, "rates-table.php");
 
 let requestId = 0;
 let debounceTimer;
@@ -36,10 +43,15 @@ let latestWasOffline = false;
 let latestRate = null;
 let latestError = null;
 let savedRates = {};
+let savedRateTable = null;
+let configuredCurrencyCodes = [];
+let lastRateTableAttemptAt = 0;
+let rateTableRefreshUnavailable = false;
 let currencyPrecision = {};
 let currencySymbols = {};
 let currentLanguage = "en";
 let currencyPickers = [];
+let editedSide = "from";
 let copyResetTimer;
 let errorTimer;
 let errorTimerStartedAt;
@@ -63,6 +75,9 @@ const translations = {
         quickAmounts: "Quick amounts",
         copy: "Copy result",
         copied: "Copied",
+        exportRates: "Export rates",
+        importRates: "Import rates",
+        rateBackup: "Rate backup",
         liveRates: "Live now — your money at today's rate.",
         footerNote: "Indicative rates for information only. Sources: ExchangeRate-API and CoinGecko.",
         from: "Base currency",
@@ -77,7 +92,7 @@ const translations = {
         refresh: "Refresh rates",
         rateDate: "Rate date",
         lastUpdated: "Last updated",
-        offlineRates: "Offline — showing your last saved rate.",
+        offlineRates: "Offline - rates from",
         lessThanMinute: "less than a minute ago",
         minuteAgo: "minute",
         minutesAgo: "minutes",
@@ -89,7 +104,11 @@ const translations = {
         connectionError: "Unable to connect to the server.",
         initializeError: "Unable to initialize the currency converter.",
         loadCurrenciesError: "Unable to load the currency list.",
-        invalidCurrencies: "The currency list is invalid."
+        invalidCurrencies: "The currency list is invalid.",
+        rateTableUnavailable: "Full rates are not available yet.",
+        invalidRateTable: "The rates file is invalid or does not include every configured currency.",
+        importRatesError: "Could not import the rates file.",
+        exportRatesError: "No saved rate table is available to export."
     },
     fr: {
         clockLabel: "Date et heure actuelles",
@@ -105,6 +124,9 @@ const translations = {
         quickAmounts: "Montants rapides",
         copy: "Copier le résultat",
         copied: "Copié",
+        exportRates: "Exporter les taux",
+        importRates: "Importer les taux",
+        rateBackup: "Sauvegarde des taux",
         liveRates: "En direct — votre argent au taux du jour.",
         footerNote: "Taux indicatifs, à titre d'information. Sources : ExchangeRate-API et CoinGecko.",
         from: "Devise de base",
@@ -119,7 +141,7 @@ const translations = {
         refresh: "Actualiser les taux",
         rateDate: "Date du taux",
         lastUpdated: "Dernière mise à jour",
-        offlineRates: "Hors ligne — dernier taux enregistré.",
+        offlineRates: "Hors ligne - taux du",
         lessThanMinute: "il y a moins d'une minute",
         minuteAgo: "minute",
         minutesAgo: "minutes",
@@ -131,7 +153,11 @@ const translations = {
         connectionError: "Impossible de se connecter au serveur.",
         initializeError: "Impossible d'initialiser le convertisseur.",
         loadCurrenciesError: "Impossible de charger la liste des devises.",
-        invalidCurrencies: "La liste des devises est invalide."
+        invalidCurrencies: "La liste des devises est invalide.",
+        rateTableUnavailable: "Les taux complets ne sont pas encore disponibles.",
+        invalidRateTable: "Le fichier des taux est invalide ou incomplet.",
+        importRatesError: "Impossible d'importer le fichier des taux.",
+        exportRatesError: "Aucune table de taux enregistrée à exporter."
     }
 };
 
@@ -369,12 +395,13 @@ function initializeCurrencyPicker(select, labelKey) {
     trigger.setAttribute("aria-controls", menu.id);
     picker.append(menu);
 
-    const options = Array.from(select.options).map((option) => {
+    const options = Array.from(select.options).map((option, index) => {
         const item = document.createElement("button");
         item.type = "button";
         item.className = "currency-picker__option";
         item.setAttribute("role", "option");
         item.dataset.value = option.value;
+        item.style.setProperty("--option-index", String(Math.min(index, 5)));
 
         const icon = document.createElement("img");
         icon.src = option.dataset.icon;
@@ -435,15 +462,26 @@ function initializeCurrencyPicker(select, labelKey) {
         });
     }
 
+    let closeTimer;
+
     function closePicker(returnFocus = false) {
-        menu.hidden = true;
+        window.clearTimeout(closeTimer);
+        menu.classList.remove("is-open");
+        menu.classList.add("is-closing");
         trigger.setAttribute("aria-expanded", "false");
+        closeTimer = window.setTimeout(() => {
+            menu.hidden = true;
+            menu.classList.remove("is-closing");
+        }, 120);
         if (returnFocus) trigger.focus();
     }
 
     function openPicker() {
+        window.clearTimeout(closeTimer);
         menu.hidden = false;
+        menu.classList.remove("is-closing");
         trigger.setAttribute("aria-expanded", "true");
+        window.requestAnimationFrame(() => menu.classList.add("is-open"));
         const selectedOption = options.find(({ option }) => option.value === select.value);
         if (selectedOption && !selectedOption.item.disabled) selectedOption.item.focus();
     }
@@ -496,6 +534,120 @@ function rateKey(from, to) {
     return `${from}:${to}`;
 }
 
+function validateRateTable(table) {
+    if (!table || typeof table !== "object" || Array.isArray(table) ||
+        typeof table.base !== "string" || !configuredCurrencyCodes.includes(table.base) ||
+        !table.rates || typeof table.rates !== "object" || Array.isArray(table.rates) ||
+        typeof table.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(table.date) ||
+        !Number.isFinite(Date.parse(`${table.date}T00:00:00Z`)) ||
+        new Date(`${table.date}T00:00:00Z`).toISOString().slice(0, 10) !== table.date ||
+        !Number.isFinite(Number(table.updatedAt)) || Number(table.updatedAt) <= 0 ||
+        !configuredCurrencyCodes.every((code) =>
+            Number.isFinite(Number(table.rates[code])) && Number(table.rates[code]) > 0
+        )) {
+        throw new Error(translate("invalidRateTable"));
+    }
+
+    return {
+        base: table.base,
+        rates: Object.fromEntries(configuredCurrencyCodes.map((code) =>
+            [code, Number(table.rates[code])]
+        )),
+        date: table.date,
+        updatedAt: Number(table.updatedAt)
+    };
+}
+
+function openRateDatabase() {
+    return new Promise((resolve, reject) => {
+        if (!window.indexedDB) {
+            reject(new Error("IndexedDB is unavailable."));
+            return;
+        }
+
+        const request = window.indexedDB.open(RATE_DATABASE_NAME, 1);
+        request.onupgradeneeded = () => {
+            const database = request.result;
+            if (!database.objectStoreNames.contains(RATE_DATABASE_STORE)) {
+                database.createObjectStore(RATE_DATABASE_STORE);
+            }
+        };
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error || new Error("Could not open the rate database."));
+        request.onblocked = () => reject(new Error("Opening the rate database was blocked."));
+    });
+}
+
+async function loadSavedRateTable() {
+    try {
+        const database = await openRateDatabase();
+        try {
+            const table = await new Promise((resolve, reject) => {
+                const transaction = database.transaction(RATE_DATABASE_STORE, "readonly");
+                const request = transaction.objectStore(RATE_DATABASE_STORE).get("latest");
+                request.onsuccess = () => resolve(request.result || null);
+                request.onerror = () => reject(request.error || new Error("Could not read saved rates."));
+            });
+            if (table) {
+                savedRateTable = validateRateTable(table);
+                return;
+            }
+        } finally {
+            database.close();
+        }
+    } catch (error) {
+        console.error("Could not load rates from IndexedDB; trying localStorage:", error);
+    }
+
+    try {
+        const storedTable = localStorage.getItem(RATE_TABLE_STORAGE_KEY);
+        if (storedTable) savedRateTable = validateRateTable(JSON.parse(storedTable));
+    } catch (error) {
+        console.error("Could not load the saved full rate table:", error);
+    }
+}
+
+async function storeRateTable(table) {
+    const validatedTable = validateRateTable(table);
+
+    try {
+        const database = await openRateDatabase();
+        try {
+            await new Promise((resolve, reject) => {
+                const transaction = database.transaction(RATE_DATABASE_STORE, "readwrite");
+                transaction.objectStore(RATE_DATABASE_STORE).put(validatedTable, "latest");
+                transaction.oncomplete = resolve;
+                transaction.onerror = () =>
+                    reject(transaction.error || new Error("Could not store rates in IndexedDB."));
+                transaction.onabort = () =>
+                    reject(transaction.error || new Error("Storing rates in IndexedDB was aborted."));
+            });
+            savedRateTable = validatedTable;
+            return;
+        } finally {
+            database.close();
+        }
+    } catch (error) {
+        console.error("Could not save rates in IndexedDB; falling back to localStorage:", error);
+    }
+
+    try {
+        localStorage.setItem(RATE_TABLE_STORAGE_KEY, JSON.stringify(validatedTable));
+        savedRateTable = validatedTable;
+    } catch (error) {
+        console.error("Could not save the full rate table for offline use:", error);
+        throw new Error("Could not persist the full rate table for offline use.");
+    }
+}
+
+function getTableRate(from, to) {
+    if (!savedRateTable) return null;
+    const fromRate = savedRateTable.rates[from];
+    const toRate = savedRateTable.rates[to];
+    const rate = toRate / fromRate;
+    return Number.isFinite(rate) && rate > 0 ? rate : null;
+}
+
 function loadSavedRates() {
     try {
         const storedRates = JSON.parse(localStorage.getItem(RATE_STORAGE_KEY) || "{}");
@@ -533,24 +685,52 @@ function saveRate(rateData) {
     }
 }
 
+function parseAmount(value) {
+    const trimmedValue = value.trim();
+    if (!trimmedValue) return null;
+    const numberParts = new Intl.NumberFormat().formatToParts(12345.6);
+    const groupSeparator = numberParts.find(({ type }) => type === "group")?.value;
+    const decimalSeparator = numberParts.find(({ type }) => type === "decimal")?.value || ".";
+    let normalizedValue = trimmedValue.replace(/[\s\u00a0\u202f]/g, "");
+    if (groupSeparator) normalizedValue = normalizedValue.split(groupSeparator).join("");
+    normalizedValue = normalizedValue.replace(decimalSeparator, ".");
+    if (!/^(?:\d+(?:\.\d*)?|\.\d+)$/.test(normalizedValue)) {
+        return Number.NaN;
+    }
+    return Number(normalizedValue);
+}
+
+function formatAmount(amount, currency, minimumFractionDigits = 2) {
+    const precision = currencyPrecision[currency] ?? 2;
+    return amount.toLocaleString(undefined, {
+        minimumFractionDigits: Math.min(minimumFractionDigits, precision),
+        maximumFractionDigits: precision
+    });
+}
+
 function updateConversionResult(rate) {
-    const amount = Number(amountInput.value.trim());
-    if (!amountInput.value.trim() || !Number.isFinite(amount) || amount <= 0) {
-        resultInput.value = "0.00";
+    const sourceInput = editedSide === "from" ? amountInput : resultInput;
+    const targetInput = editedSide === "from" ? resultInput : amountInput;
+    const targetCurrency = editedSide === "from" ? toCurrency.value : fromCurrency.value;
+    const amount = parseAmount(sourceInput.value);
+    if (amount === null || !Number.isFinite(amount) || amount <= 0) {
+        targetInput.value = "0.00";
         copyButton.disabled = true;
         return;
     }
 
-    const precision = currencyPrecision[toCurrency.value] || 2;
-    resultInput.value = (amount * rate).toLocaleString(undefined, {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: precision
-    });
-    copyButton.disabled = resultInput.value === "0.00";
+    const converted = editedSide === "from" ? amount * rate : amount / rate;
+    if (!Number.isFinite(converted)) {
+        targetInput.value = "0.00";
+        copyButton.disabled = true;
+        return;
+    }
+    targetInput.value = formatAmount(converted, targetCurrency);
+    copyButton.disabled = false;
 }
 
 function clearConversionResult() {
-    resultInput.value = "0.00";
+    (editedSide === "from" ? resultInput : amountInput).value = "0.00";
     copyButton.disabled = true;
 }
 
@@ -576,6 +756,11 @@ function updateLastUpdated() {
     }
 
     rateRow.dataset.state = latestWasOffline ? "offline" : "live";
+    if (latestWasOffline) {
+        lastUpdated.textContent = `${translate("offlineRates")} ${latestRate.date}`;
+        return;
+    }
+
     const minutes = Math.max(0, Math.floor((Date.now() / 1000 - latestUpdatedAt) / 60));
     let age;
     if (currentLanguage === "fr") {
@@ -587,15 +772,101 @@ function updateLastUpdated() {
             ? translate("lessThanMinute")
             : `${minutes} ${minutes === 1 ? translate("minuteAgo") : translate("minutesAgo")} ago`;
     }
-    const statusPrefix = latestWasOffline
-        ? `${translate("offlineRates")} `
-        : `${translate("liveRates")} `;
+    const statusPrefix = `${translate("liveRates")} `;
     lastUpdated.textContent = `${statusPrefix}${translate("lastUpdated")} ${age}`;
 }
 
+async function fetchAndSaveRateTable() {
+    const response = await fetch(RATE_TABLE_API_URL, {
+        headers: { Accept: "application/json" }
+    });
+    const responseText = await response.text();
+    let data;
+    try {
+        data = JSON.parse(responseText);
+    } catch {
+        throw new Error(translations.en.invalidResponse);
+    }
+
+    if (!response.ok) {
+        throw new Error(data?.error || translate("rateTableUnavailable"));
+    }
+    const rateTable = validateRateTable(data);
+    await storeRateTable(rateTable);
+    return rateTable;
+}
+
+async function requestStoragePersistence() {
+    if (!navigator.onLine || !navigator.storage ||
+        typeof navigator.storage.persist !== "function") return;
+
+    try {
+        const isPersisted = await navigator.storage.persist();
+        if (!isPersisted) {
+            console.info("The browser did not grant persistent storage for offline rates.");
+        }
+    } catch (error) {
+        console.error("Could not request persistent storage for offline rates:", error);
+    }
+}
+
+function exportRateTable() {
+    if (!savedRateTable) {
+        latestError = translations.en.exportRatesError;
+        setErrorMessage(translateErrorMessage(latestError));
+        return;
+    }
+
+    const file = new Blob([JSON.stringify({ version: 1, ...savedRateTable }, null, 2)], {
+        type: "application/json"
+    });
+    const url = URL.createObjectURL(file);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "rates.json";
+    document.body.append(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+async function importRateTable(file) {
+    try {
+        const importedTable = validateRateTable(JSON.parse(await file.text()));
+        await storeRateTable(importedTable);
+        const rate = getTableRate(fromCurrency.value, toCurrency.value);
+        if (rate) {
+            displayRate({
+                from: fromCurrency.value,
+                to: toCurrency.value,
+                rate,
+                date: importedTable.date,
+                updatedAt: importedTable.updatedAt
+            }, true);
+        }
+        latestError = null;
+        setErrorMessage("");
+    } catch (error) {
+        console.error("Could not import the rates file:", error);
+        latestError = error instanceof Error
+            ? error.message
+            : translations.en.importRatesError;
+        setErrorMessage(translateErrorMessage(latestError));
+    } finally {
+        importRatesFile.value = "";
+    }
+}
+
 async function copyConversionResult() {
-    const text = resultInput.value;
-    if (copyButton.disabled || !text || text === "0.00") return;
+    const fromAmount = parseAmount(amountInput.value);
+    const toAmount = parseAmount(resultInput.value);
+    if (copyButton.disabled || !Number.isFinite(fromAmount) || fromAmount <= 0 ||
+        !Number.isFinite(toAmount) || toAmount <= 0) return;
+    const formatCopyAmount = (amount) => amount.toLocaleString(undefined, {
+        maximumFractionDigits: 20
+    });
+    const text = `${formatCopyAmount(fromAmount)} ${fromCurrency.value} = ` +
+        `${formatCopyAmount(toAmount)} ${toCurrency.value}`;
 
     let copied = false;
     let clipboardError;
@@ -687,6 +958,7 @@ async function loadCurrencies() {
 
     currencyPrecision = Object.fromEntries(currencies.map(({ code, precision }) => [code, precision]));
     currencySymbols = Object.fromEntries(currencies.map(({ code, symbol }) => [code, symbol]));
+    configuredCurrencyCodes = currencies.map(({ code }) => code);
 
     for (const currency of currencies) {
         for (const [select, isDefault] of [
@@ -706,12 +978,23 @@ async function loadCurrencies() {
 async function convertCurrency(rateOnly = false) {
     window.clearTimeout(debounceTimer);
     const currentRequest = ++requestId;
-    const amount = amountInput.value.trim();
-    const hasAmount = amount !== "";
+    const sourceInput = editedSide === "from" ? amountInput : resultInput;
+    const amountText = sourceInput.value.trim();
+    const amount = parseAmount(amountText);
+    const hasAmount = amountText !== "";
     const from = fromCurrency.value;
     const to = toCurrency.value;
     const cachedRate = getSavedRate(from, to);
-    if (cachedRate) {
+    let tableRate = getTableRate(from, to);
+    if (tableRate) {
+        displayRate({
+            from,
+            to,
+            rate: tableRate,
+            date: savedRateTable.date,
+            updatedAt: savedRateTable.updatedAt
+        }, !navigator.onLine || rateTableRefreshUnavailable);
+    } else if (cachedRate) {
         displayRate({ from, to, ...cachedRate }, true);
     } else if (latestRate && (latestRate.from !== from || latestRate.to !== to)) {
         latestRate = null;
@@ -723,17 +1006,47 @@ async function convertCurrency(rateOnly = false) {
     latestError = null;
     setErrorMessage("");
 
-    if (!rateOnly && (amountInput.validity.badInput ||
-        (hasAmount && (!Number.isFinite(Number(amount)) || Number(amount) < 0)))) {
+    if (!rateOnly && (hasAmount && (!Number.isFinite(amount) || amount < 0))) {
         clearConversionResult();
         latestError = translations.en.enterAmount;
         setErrorMessage(translateErrorMessage(latestError));
         return;
     }
 
-    if (!cachedRate) {
+    const now = Date.now() / 1000;
+    const rateTableAge = savedRateTable ? now - savedRateTable.updatedAt : Infinity;
+    const shouldRefreshRateTable = navigator.onLine &&
+        (rateOnly || lastRateTableAttemptAt === 0 || (now - lastRateTableAttemptAt >= 45 &&
+            (!savedRateTable || rateTableAge >= RATE_REFRESH_INTERVAL / 1000)));
+    if (shouldRefreshRateTable) {
+        lastRateTableAttemptAt = now;
+        try {
+            await fetchAndSaveRateTable();
+            rateTableRefreshUnavailable = false;
+        } catch (error) {
+            if (currentRequest !== requestId) return;
+            rateTableRefreshUnavailable = true;
+            console.warn("Could not fetch the full rate table:", error);
+        }
+        if (currentRequest !== requestId) return;
+        tableRate = getTableRate(from, to);
+    }
+
+    if (!tableRate && !cachedRate) {
         clearConversionResult();
     }
+
+    if (tableRate) {
+        displayRate({
+            from,
+            to,
+            rate: tableRate,
+            date: savedRateTable.date,
+            updatedAt: savedRateTable.updatedAt
+        }, !navigator.onLine || rateTableRefreshUnavailable);
+        return;
+    }
+
     try {
         const response = await fetch(CONVERSION_API_URL, {
             method: "POST",
@@ -741,7 +1054,7 @@ async function convertCurrency(rateOnly = false) {
                 "Content-Type": "application/json"
             },
             body: JSON.stringify({
-                amount: !rateOnly && hasAmount && Number(amount) > 0 ? amount : "1",
+                amount: !rateOnly && hasAmount && amount > 0 ? String(amount) : "1",
                 from,
                 to
             })
@@ -783,15 +1096,25 @@ async function convertCurrency(rateOnly = false) {
         };
         saveRate(rateData);
         displayRate(rateData, response.headers.get("X-Offline-Cache") === "true");
-        latestError = null;
+        if (rateTableRefreshUnavailable) {
+            latestError = translations.en.rateTableUnavailable;
+            setErrorMessage(translateErrorMessage(latestError));
+        } else {
+            latestError = null;
+        }
     } catch (error) {
         if (currentRequest !== requestId) return;
 
         const fallbackRate = getSavedRate(from, to);
         if (fallbackRate) {
             displayRate({ from, to, ...fallbackRate }, true);
-            latestError = null;
-            setErrorMessage("");
+            if (rateTableRefreshUnavailable) {
+                latestError = translations.en.rateTableUnavailable;
+                setErrorMessage(translateErrorMessage(latestError));
+            } else {
+                latestError = null;
+                setErrorMessage("");
+            }
         } else {
             latestError = error instanceof TypeError
                 ? translations.en.connectionError
@@ -803,10 +1126,16 @@ async function convertCurrency(rateOnly = false) {
     }
 }
 
-function scheduleConversion() {
+function scheduleConversion(side = "from") {
+    editedSide = side;
     window.clearTimeout(debounceTimer);
     requestId += 1;
-    if (!amountInput.value.trim() || Number(amountInput.value) === 0) {
+    const sourceInput = editedSide === "from" ? amountInput : resultInput;
+    const amount = parseAmount(sourceInput.value);
+    if (amount !== null && Number.isFinite(amount) && amount > 0 &&
+        latestRate?.from === fromCurrency.value && latestRate?.to === toCurrency.value) {
+        updateConversionResult(latestRate.rate);
+    } else {
         clearConversionResult();
     }
     debounceTimer = window.setTimeout(convertCurrency, 300);
@@ -847,6 +1176,8 @@ async function initialize() {
     loadSavedRates();
 
     await loadCurrencies();
+    await loadSavedRateTable();
+    await requestStoragePersistence();
 
     currencyPickers = [
         initializeCurrencyPicker(fromCurrency, "fromCurrency"),
@@ -864,15 +1195,24 @@ async function initialize() {
         });
     });
 
-    amountInput.addEventListener("input", scheduleConversion);
+    amountInput.addEventListener("input", () => scheduleConversion("from"));
+    resultInput.addEventListener("input", () => scheduleConversion("to"));
     document.querySelectorAll(".chip").forEach((chip) => {
         chip.addEventListener("click", () => {
-            amountInput.value = chip.dataset.amount;
-            convertCurrency();
-            amountInput.focus();
+            const side = chip.dataset.side || "from";
+            const input = side === "from" ? amountInput : resultInput;
+            input.value = chip.dataset.amount;
+            scheduleConversion(side);
+            input.focus();
         });
     });
     copyButton.addEventListener("click", copyConversionResult);
+    exportRatesButton.addEventListener("click", exportRateTable);
+    importRatesButton.addEventListener("click", () => importRatesFile.click());
+    importRatesFile.addEventListener("change", () => {
+        const [file] = importRatesFile.files;
+        if (file) importRateTable(file);
+    });
     fromCurrency.addEventListener("change", () => {
         updateCurrencySymbols();
         convertCurrency();
@@ -883,12 +1223,19 @@ async function initialize() {
     });
     refreshButton.addEventListener("click", () => convertCurrency(true));
     window.setInterval(() => convertCurrency(true), RATE_REFRESH_INTERVAL);
-    window.addEventListener("online", () => convertCurrency(true));
+    window.addEventListener("online", () => {
+        requestStoragePersistence();
+        convertCurrency(true);
+    });
 
     swapButton.addEventListener("click", () => {
+        const previousAmount = amountInput.value;
+        amountInput.value = resultInput.value;
+        resultInput.value = previousAmount;
         const previousFrom = fromCurrency.value;
         fromCurrency.value = toCurrency.value;
         toCurrency.value = previousFrom;
+        editedSide = "from";
 
         currencyPickers.forEach(({ updatePicker }) => updatePicker());
         updatePickerAvailability(currencyPickers);
