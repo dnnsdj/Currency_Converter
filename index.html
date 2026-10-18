@@ -14,6 +14,9 @@
       <div class="site-header__meta" aria-label="Current date and time">
         <time class="site-header__time-pill" id="current-date"></time>
         <time class="site-header__time-pill" id="current-time"></time>
+        <button type="button" class="site-header__button" id="theme-toggle" aria-pressed="false">
+          Dark mode
+        </button>
       </div>
     </header>
 
@@ -26,10 +29,11 @@
 
         <div class="converter__panels">
           <div class="converter__panel converter__panel--from">
-            <h3 class="converter__label">From:</h3>
+            <label class="converter__label" for="from-currency">From:</label>
 
             <div class="converter__field">
               <span class="converter__currency-symbol" id="from-symbol" aria-hidden="true"></span>
+              <label class="visually-hidden" for="amount">Amount to convert</label>
               <input
                 type="number"
                 name="amount"
@@ -46,20 +50,16 @@
                 class="converter__select"
                 aria-label="From currency"
               >
-                <option value="BTC" data-icon="assets/currencies/btc.svg">BTC</option>
-                <option value="USD" data-icon="assets/currencies/usd.svg">USD</option>
-                <option value="GBP" data-icon="assets/currencies/gbp.svg">GBP</option>
-                <option value="EUR" data-icon="assets/currencies/eur.svg">EUR</option>
-                <option value="GHS" data-icon="assets/currencies/ghs.svg" selected>GHS</option>
               </select>
             </div>
           </div>
 
           <div class="converter__panel converter__panel--to">
-            <h3 class="converter__label">To:</h3>
+            <label class="converter__label" for="to-currency">To:</label>
 
             <div class="converter__field">
               <span class="converter__currency-symbol" id="to-symbol" aria-hidden="true"></span>
+              <label class="visually-hidden" for="result">Converted amount</label>
               <input
                 type="text"
                 id="result"
@@ -74,11 +74,6 @@
                 class="converter__select"
                 aria-label="To currency"
               >
-                <option value="BTC" data-icon="assets/currencies/btc.svg">BTC</option>
-                <option value="USD" data-icon="assets/currencies/usd.svg" selected>USD</option>
-                <option value="GBP" data-icon="assets/currencies/gbp.svg">GBP</option>
-                <option value="EUR" data-icon="assets/currencies/eur.svg">EUR</option>
-                <option value="GHS" data-icon="assets/currencies/ghs.svg">GHS</option>
               </select>
             </div>
           </div>
@@ -88,7 +83,13 @@
           </div>
         </div>
 
-        <p id="rate-info" class="converter__message converter__message--rate" aria-live="polite"></p>
+        <div class="converter__rate-row">
+          <p id="rate-info" class="converter__message converter__message--rate" aria-live="polite"></p>
+          <div class="converter__rate-actions">
+            <span id="last-updated" class="converter__updated" aria-live="polite"></span>
+            <button type="button" id="refresh-rates" class="converter__refresh">Refresh rates</button>
+          </div>
+        </div>
         <p id="error-message" class="converter__message converter__message--error" role="alert"></p>
       </div>
     </main>

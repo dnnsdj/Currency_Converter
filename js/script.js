@@ -9,20 +9,16 @@ const currentDate = document.querySelector("#current-date");
 const currentTime = document.querySelector("#current-time");
 const fromSymbol = document.querySelector("#from-symbol");
 const toSymbol = document.querySelector("#to-symbol");
+const lastUpdated = document.querySelector("#last-updated");
+const refreshButton = document.querySelector("#refresh-rates");
+const themeToggle = document.querySelector("#theme-toggle");
 
 let requestId = 0;
-const currencySymbols = {
-    BTC: "\u20bf",
-    USD: "$",
-    GBP: "\u00a3",
-    EUR: "\u20ac",
-    GHS: "GH\u20b5"
-};
-
-function updateCurrencySymbols() {
-    fromSymbol.textContent = currencySymbols[fromCurrency.value];
-    toSymbol.textContent = currencySymbols[toCurrency.value];
-}
+let debounceTimer;
+let latestUpdatedAt = null;
+let latestWasOffline = false;
+let currencyPrecision = {};
+let currencySymbols = {};
 
 function updateHeaderClock() {
     const now = new Date();
@@ -47,8 +43,37 @@ function updateHeaderClock() {
     currentTime.dateTime = now.toISOString();
 }
 
-updateHeaderClock();
-setInterval(updateHeaderClock, 1000);
+function applyTheme(theme, persist = false) {
+    const isDark = theme === "dark";
+    document.documentElement.dataset.theme = isDark ? "dark" : "light";
+    themeToggle.setAttribute("aria-pressed", String(isDark));
+    themeToggle.textContent = isDark ? "Light mode" : "Dark mode";
+    if (persist) {
+        try {
+            localStorage.setItem("currency-converter-theme", theme);
+        } catch (error) {
+            console.error("Could not save the theme preference:", error);
+        }
+    }
+}
+
+function initializeTheme() {
+    let savedTheme = null;
+    try {
+        savedTheme = localStorage.getItem("currency-converter-theme");
+    } catch (error) {
+        console.error("Could not load the saved theme preference:", error);
+    }
+    const preferredTheme = window.matchMedia("(prefers-color-scheme: dark)").matches
+        ? "dark"
+        : "light";
+    applyTheme(savedTheme === "dark" || savedTheme === "light" ? savedTheme : preferredTheme);
+
+    themeToggle.addEventListener("click", () => {
+        const nextTheme = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+        applyTheme(nextTheme, true);
+    });
+}
 
 function initializeCurrencyPicker(select, label) {
     const picker = document.createElement("div");
@@ -61,11 +86,14 @@ function initializeCurrencyPicker(select, label) {
 
     const trigger = document.createElement("button");
     trigger.type = "button";
+    trigger.id = `${select.id}-control`;
     trigger.className = "currency-picker__trigger";
     trigger.setAttribute("aria-haspopup", "listbox");
     trigger.setAttribute("aria-expanded", "false");
-    trigger.setAttribute("aria-label", label);
     picker.append(trigger);
+
+    const fieldLabel = document.querySelector(`label[for="${select.id}"]`);
+    if (fieldLabel) fieldLabel.htmlFor = trigger.id;
 
     const menu = document.createElement("div");
     menu.className = "currency-picker__menu";
@@ -151,7 +179,8 @@ function initializeCurrencyPicker(select, label) {
     function openPicker() {
         menu.hidden = false;
         trigger.setAttribute("aria-expanded", "true");
-        options.find(({ option }) => option.value === select.value)?.item.focus();
+        const selectedOption = options.find(({ option }) => option.value === select.value);
+        if (selectedOption && !selectedOption.item.disabled) selectedOption.item.focus();
     }
 
     trigger.addEventListener("click", () => {
@@ -188,28 +217,53 @@ function initializeCurrencyPicker(select, label) {
     return { picker, closePicker, setUnavailable, updatePicker };
 }
 
-const currencyPickers = [
-    initializeCurrencyPicker(fromCurrency, "From currency"),
-    initializeCurrencyPicker(toCurrency, "To currency")
-];
-
-function updatePickerAvailability() {
-    currencyPickers[0].setUnavailable(toCurrency.value);
-    currencyPickers[1].setUnavailable(fromCurrency.value);
+function updateCurrencySymbols() {
+    fromSymbol.textContent = currencySymbols[fromCurrency.value];
+    toSymbol.textContent = currencySymbols[toCurrency.value];
 }
 
-fromCurrency.addEventListener("change", updatePickerAvailability);
-toCurrency.addEventListener("change", updatePickerAvailability);
-updatePickerAvailability();
-updateCurrencySymbols();
+function updateLastUpdated() {
+    if (latestUpdatedAt === null) {
+        lastUpdated.textContent = "";
+        return;
+    }
 
-document.addEventListener("click", (event) => {
-    currencyPickers.forEach(({ picker, closePicker }) => {
-        if (!picker.contains(event.target)) closePicker();
-    });
-});
+    const minutes = Math.max(0, Math.floor((Date.now() / 1000 - latestUpdatedAt) / 60));
+    const age = minutes === 0
+        ? "less than a minute ago"
+        : `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
+    lastUpdated.textContent = `${latestWasOffline ? "Offline rates. " : ""}Last updated ${age}`;
+}
+
+async function loadCurrencies() {
+    const response = await fetch("config/currencies.json");
+    if (!response.ok) throw new Error("Unable to load the currency list.");
+
+    const currencies = await response.json();
+    if (!Array.isArray(currencies) || currencies.length === 0) {
+        throw new Error("The currency list is invalid.");
+    }
+
+    currencyPrecision = Object.fromEntries(currencies.map(({ code, precision }) => [code, precision]));
+    currencySymbols = Object.fromEntries(currencies.map(({ code, symbol }) => [code, symbol]));
+
+    for (const currency of currencies) {
+        for (const [select, isDefault] of [
+            [fromCurrency, currency.defaultFrom],
+            [toCurrency, currency.defaultTo]
+        ]) {
+            const option = document.createElement("option");
+            option.value = currency.code;
+            option.textContent = currency.code;
+            option.dataset.icon = currency.icon;
+            option.selected = isDefault;
+            select.append(option);
+        }
+    }
+}
 
 async function convertCurrency() {
+    window.clearTimeout(debounceTimer);
     const currentRequest = ++requestId;
     const amount = amountInput.value.trim();
     const hasAmount = amount !== "";
@@ -241,7 +295,6 @@ async function convertCurrency() {
 
         const data = await response.json();
 
-        // Ignore outdated responses.
         if (currentRequest !== requestId) return;
 
         if (!response.ok) {
@@ -250,21 +303,27 @@ async function convertCurrency() {
 
         const converted = Number(data.converted);
         const rate = Number(data.rate);
-        if (!Number.isFinite(converted) || !Number.isFinite(rate) || typeof data.date !== "string") {
+        const updatedAt = Number(data.updatedAt);
+        if (!Number.isFinite(converted) || !Number.isFinite(rate) ||
+            !Number.isFinite(updatedAt) || typeof data.date !== "string") {
             throw new Error("Received an invalid response from the server.");
         }
 
         if (hasAmount) {
+            const precision = currencyPrecision[data.to] || 2;
             resultInput.value = converted.toLocaleString(undefined, {
                 minimumFractionDigits: 2,
-                maximumFractionDigits: data.to === "BTC" ? 8 : 2
+                maximumFractionDigits: precision
             });
         }
 
+        const ratePrecision = currencyPrecision[data.to] || 4;
         rateInfo.textContent =
-            `1 ${data.from} = ${rate.toFixed(data.to === "BTC" ? 8 : 4)} ${data.to}` +
+            `1 ${data.from} = ${rate.toFixed(ratePrecision)} ${data.to}` +
             ` | Rate date: ${data.date}`;
-
+        latestUpdatedAt = updatedAt;
+        latestWasOffline = response.headers.get("X-Offline-Cache") === "true";
+        updateLastUpdated();
     } catch (error) {
         if (currentRequest !== requestId) return;
 
@@ -278,20 +337,74 @@ async function convertCurrency() {
     }
 }
 
-amountInput.addEventListener("input", convertCurrency);
-fromCurrency.addEventListener("change", convertCurrency);
-toCurrency.addEventListener("change", convertCurrency);
-fromCurrency.addEventListener("change", updateCurrencySymbols);
-toCurrency.addEventListener("change", updateCurrencySymbols);
-convertCurrency();
+function scheduleConversion() {
+    window.clearTimeout(debounceTimer);
+    requestId += 1;
+    debounceTimer = window.setTimeout(convertCurrency, 300);
+}
 
-swapButton.addEventListener("click", () => {
-    const previousFrom = fromCurrency.value;
-    fromCurrency.value = toCurrency.value;
-    toCurrency.value = previousFrom;
+function updatePickerAvailability(currencyPickers) {
+    currencyPickers[0].setUnavailable(toCurrency.value);
+    currencyPickers[1].setUnavailable(fromCurrency.value);
+}
 
-    currencyPickers.forEach(({ updatePicker }) => updatePicker());
-    updatePickerAvailability();
+async function initialize() {
+    updateHeaderClock();
+    window.setInterval(updateHeaderClock, 1000);
+    window.setInterval(updateLastUpdated, 60_000);
+    initializeTheme();
+
+    await loadCurrencies();
+
+    const currencyPickers = [
+        initializeCurrencyPicker(fromCurrency, "From currency"),
+        initializeCurrencyPicker(toCurrency, "To currency")
+    ];
+
+    fromCurrency.addEventListener("change", () => updatePickerAvailability(currencyPickers));
+    toCurrency.addEventListener("change", () => updatePickerAvailability(currencyPickers));
+    updatePickerAvailability(currencyPickers);
     updateCurrencySymbols();
+
+    document.addEventListener("click", (event) => {
+        currencyPickers.forEach(({ picker, closePicker }) => {
+            if (!picker.contains(event.target)) closePicker();
+        });
+    });
+
+    amountInput.addEventListener("input", scheduleConversion);
+    fromCurrency.addEventListener("change", () => {
+        updateCurrencySymbols();
+        convertCurrency();
+    });
+    toCurrency.addEventListener("change", () => {
+        updateCurrencySymbols();
+        convertCurrency();
+    });
+    refreshButton.addEventListener("click", convertCurrency);
+
+    swapButton.addEventListener("click", () => {
+        const previousFrom = fromCurrency.value;
+        fromCurrency.value = toCurrency.value;
+        toCurrency.value = previousFrom;
+
+        currencyPickers.forEach(({ updatePicker }) => updatePicker());
+        updatePickerAvailability(currencyPickers);
+        updateCurrencySymbols();
+        convertCurrency();
+    });
+
     convertCurrency();
+
+    if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.register("service-worker.js")
+            .catch((error) => console.error("Service worker registration failed:", error));
+    }
+}
+
+initialize().catch((error) => {
+    errorMessage.textContent = error instanceof Error
+        ? error.message
+        : "Unable to initialize the currency converter.";
+    console.error("Currency converter initialization failed:", error);
 });

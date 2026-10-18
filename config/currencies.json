@@ -1,0 +1,68 @@
+[
+  {
+    "code": "USD",
+    "name": "US Dollar",
+    "symbol": "$",
+    "icon": "assets/currencies/usd.svg",
+    "precision": 2,
+    "defaultFrom": false,
+    "defaultTo": true
+  },
+  {
+    "code": "EUR",
+    "name": "Euro",
+    "symbol": "€",
+    "icon": "assets/currencies/eur.svg",
+    "precision": 2,
+    "defaultFrom": false,
+    "defaultTo": false
+  },
+  {
+    "code": "GBP",
+    "name": "British Pound",
+    "symbol": "£",
+    "icon": "assets/currencies/gbp.svg",
+    "precision": 2,
+    "defaultFrom": false,
+    "defaultTo": false
+  },
+  {
+    "code": "GHS",
+    "name": "Ghanaian Cedi",
+    "symbol": "GH₵",
+    "icon": "assets/currencies/ghs.svg",
+    "precision": 2,
+    "defaultFrom": true,
+    "defaultTo": false
+  },
+  {
+    "code": "BTC",
+    "name": "Bitcoin",
+    "symbol": "₿",
+    "icon": "assets/currencies/btc.svg",
+    "precision": 8,
+    "cryptoId": "bitcoin",
+    "defaultFrom": false,
+    "defaultTo": false
+  },
+  {
+    "code": "USDT",
+    "name": "Tether",
+    "symbol": "₮",
+    "icon": "assets/currencies/usdt.svg",
+    "precision": 4,
+    "cryptoId": "tether",
+    "defaultFrom": false,
+    "defaultTo": false
+  },
+  {
+    "code": "BNB",
+    "name": "BNB",
+    "symbol": "BNB",
+    "icon": "assets/currencies/bnb.svg",
+    "precision": 8,
+    "cryptoId": "binancecoin",
+    "defaultFrom": false,
+    "defaultTo": false
+  }
+]
