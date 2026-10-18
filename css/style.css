@@ -373,7 +373,6 @@ body {
     color: var(--error-text-color);
 }
 
-.site-header__button,
 .converter__refresh {
     padding: 8px 12px;
     border: 1px solid var(--pill-border-color);
@@ -384,8 +383,76 @@ body {
     cursor: pointer;
 }
 
-.site-header__button:focus-visible,
 .converter__refresh:focus-visible {
+    outline: 2px solid var(--accent-color);
+    outline-offset: 2px;
+}
+
+.theme-switch {
+    position: relative;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: center;
+    min-width: 116px;
+    padding: 3px;
+    overflow: hidden;
+    border: 1px solid var(--pill-border-color);
+    border-radius: 50px;
+    background: var(--surface-background);
+}
+
+.theme-switch__indicator {
+    position: absolute;
+    top: 3px;
+    bottom: 3px;
+    left: 3px;
+    width: calc(50% - 3px);
+    border-radius: 50px;
+    background: var(--accent-color);
+    transition: transform 220ms ease;
+}
+
+:root[data-theme="dark"] .theme-switch__indicator {
+    transform: translateX(100%);
+}
+
+.theme-switch__button {
+    position: relative;
+    z-index: 1;
+    min-width: 0;
+    padding: 5px 8px;
+    border: 0;
+    border-radius: 50px;
+    background: transparent;
+    color: var(--muted-text-color);
+    font: inherit;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: color 180ms ease;
+}
+
+.theme-switch__button[aria-pressed="true"] {
+    color: var(--on-accent-color);
+}
+
+.theme-switch__button:focus-visible {
+    outline: 2px solid var(--accent-color);
+    outline-offset: -1px;
+}
+
+.language-select {
+    min-height: 34px;
+    padding: 6px 9px;
+    border: 1px solid var(--pill-border-color);
+    border-radius: 50px;
+    background: var(--surface-background);
+    color: var(--text-color);
+    font: inherit;
+    font-size: 0.8rem;
+    cursor: pointer;
+}
+
+.language-select:focus-visible {
     outline: 2px solid var(--accent-color);
     outline-offset: 2px;
 }
@@ -413,6 +480,86 @@ body {
     color: var(--muted-text-color);
     font-size: 0.85rem;
     text-align: center;
+}
+
+.converter__alert {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 12px;
+    padding: 22px;
+    border: 1px solid var(--border-color);
+    border-radius: 13px;
+    background: var(--panel-background);
+    box-shadow: 0 4px 10px var(--shadow-color);
+}
+
+.converter__alert-title {
+    color: var(--text-color);
+    font-family: Verdana, Geneva, Tahoma, sans-serif;
+    font-size: 1.2rem;
+}
+
+.converter__alert-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    color: var(--text-color);
+}
+
+.converter__alert-field {
+    display: grid;
+    gap: 6px;
+    color: var(--muted-text-color);
+    font-size: 0.9rem;
+}
+
+.converter__alert-field input,
+.converter__alert-form select {
+    width: 100%;
+    min-height: 40px;
+    padding: 8px 10px;
+    border: 1px solid var(--control-border-color);
+    border-radius: 8px;
+    background: var(--surface-background);
+    color: var(--control-text-color);
+    font: inherit;
+}
+
+.converter__alert-field input:focus-visible,
+.converter__alert-form select:focus-visible,
+.converter__alert-consent input:focus-visible {
+    outline: 2px solid var(--accent-color);
+    outline-offset: 2px;
+}
+
+.converter__alert-consent {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    color: var(--muted-text-color);
+    font-size: 0.85rem;
+    line-height: 1.4;
+}
+
+.converter__alert-consent input {
+    flex: 0 0 auto;
+    margin-top: 2px;
+}
+
+.converter__alert-form button:disabled {
+    cursor: wait;
+    opacity: 0.65;
+}
+
+.converter__alert-status {
+    color: var(--muted-text-color);
+    font-size: 0.9rem;
+    overflow-wrap: anywhere;
+}
+
+.converter__alert-status:empty {
+    display: none;
 }
 
 @media (max-width: 640px) {
@@ -462,5 +609,10 @@ body {
         transition-duration: 0.01ms !important;
         animation-duration: 0.01ms !important;
         animation-iteration-count: 1 !important;
+    }
+
+    .theme-switch__indicator,
+    .theme-switch__button {
+        transition-duration: 0.01ms !important;
     }
 }
