@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: currency-converter-api
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /
+    envVars:
+      - key: CORS_ALLOWED_ORIGINS
+        value: https://dnnsdj.github.io

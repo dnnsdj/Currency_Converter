@@ -152,15 +152,15 @@ async function handleConversion(request) {
 
 self.addEventListener("fetch", (event) => {
     const requestUrl = new URL(event.request.url);
-    const appUrl = new URL(self.registration.scope);
-
-    if (requestUrl.origin !== appUrl.origin) return;
 
     if (event.request.method === "POST" &&
         requestUrl.pathname.endsWith("/api/convert.php")) {
         event.respondWith(handleConversion(event.request));
         return;
     }
+
+    const appUrl = new URL(self.registration.scope);
+    if (requestUrl.origin !== appUrl.origin) return;
 
     if (event.request.method === "GET") {
         event.respondWith((async () => {

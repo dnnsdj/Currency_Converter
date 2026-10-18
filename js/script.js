@@ -19,6 +19,9 @@ const languageSelect = document.querySelector("#language-select");
 const RATE_STORAGE_KEY = "currency-converter-rates";
 const CURRENCY_STORAGE_KEY = "currency-converter-currencies";
 const RATE_REFRESH_INTERVAL = 30 * 60 * 1000;
+const CONVERSION_API_URL = window.location.hostname === "dnnsdj.github.io"
+    ? "https://currency-converter-api.onrender.com/api/convert.php"
+    : "api/convert.php";
 
 let requestId = 0;
 let debounceTimer;
@@ -565,7 +568,7 @@ async function convertCurrency(rateOnly = false) {
     resultInput.placeholder = translate("converting");
 
     try {
-        const response = await fetch("api/convert.php", {
+        const response = await fetch(CONVERSION_API_URL, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json"

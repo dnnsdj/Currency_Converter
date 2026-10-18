@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/cors.php';
 header('Content-Type: application/json; charset=utf-8');
 
 function sendJsonResponse($statusCode, $response)
