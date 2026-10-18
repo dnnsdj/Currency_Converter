@@ -11,7 +11,7 @@ self.addEventListener("install", (event) => {
         const assets = currencies.map((currency) => currency.icon);
 
         await shellCache.addAll([
-            "./",
+            "./"
             "index.html",
             "css/style.css",
             "assets/fontawesome/css/all.min.css",
@@ -167,7 +167,7 @@ self.addEventListener("fetch", (event) => {
 
     if (event.request.method === "GET") {
         event.respondWith((async () => {
-            const shellCache = await caches.open(SHELL_CACHE);
+            const SHELL_CACHE = "currency-converter-shell-v8";
             const cachedResponse = await shellCache.match(event.request);
             if (cachedResponse) return cachedResponse;
             return fetch(event.request);
