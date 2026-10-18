@@ -32,6 +32,8 @@ jobs:
           cp index.html service-worker.js _site/
           cp -R assets/fontawesome _site/assets/
           cp -R assets/currencies _site/assets/
+          cp -R assets/brand _site/assets/
+          cp -R assets/fonts _site/assets/
           cp css/style.css _site/css/
           cp js/script.js _site/js/
           cp config/currencies.json _site/config/

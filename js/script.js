@@ -7,15 +7,21 @@ const rateInfoFrom = document.querySelector("#rate-info-from");
 const rateInfoTo = document.querySelector("#rate-info-to");
 const errorNotification = document.querySelector("#error-notification");
 const errorMessage = document.querySelector("#error-message");
+const dismissErrorButton = document.querySelector("#dismiss-error");
 const currentDate = document.querySelector("#current-date");
 const currentTime = document.querySelector("#current-time");
 const fromSymbol = document.querySelector("#from-symbol");
 const toSymbol = document.querySelector("#to-symbol");
 const lastUpdated = document.querySelector("#last-updated");
+const rateRow = document.querySelector(".converter__rate-row");
 const refreshButton = document.querySelector("#refresh-rates");
+const copyButton = document.querySelector("#copy-result");
+const copyLabel = document.querySelector("#copy-label");
 const themeLightButton = document.querySelector("#theme-light");
 const themeDarkButton = document.querySelector("#theme-dark");
 const languageSelect = document.querySelector("#language-select");
+const headerMenuToggle = document.querySelector("#header-menu-toggle");
+const headerTools = document.querySelector("#header-tools");
 const RATE_STORAGE_KEY = "currency-converter-rates";
 const CURRENCY_STORAGE_KEY = "currency-converter-currencies";
 const RATE_REFRESH_INTERVAL = 30 * 60 * 1000;
@@ -34,35 +40,50 @@ let currencyPrecision = {};
 let currencySymbols = {};
 let currentLanguage = "en";
 let currencyPickers = [];
+let copyResetTimer;
+let errorTimer;
+let errorTimerStartedAt;
+let errorTimeRemaining = 10_000;
+let errorTimerPaused = false;
+let errorHovered = false;
+let errorFocused = false;
 
 const translations = {
     en: {
         clockLabel: "Current date and time",
         themeLabel: "Color theme",
+        openSettings: "Open settings",
         light: "Light",
         dark: "Dark",
         language: "Language",
-        ratesTitle: "Today's Rates",
+        ratesTitle: "Make every cedi count",
         alertTitle: "Alert",
-        converterSubtitle: "Convert currencies instantly",
-        from: "From:",
-        to: "To:",
-        fromCurrency: "From currency",
-        toCurrency: "To currency",
-        amountLabel: "Amount to convert",
-        amountPlaceholder: "Enter amount",
-        resultLabel: "Converted amount",
-        resultPlaceholder: "Converted amount",
-        swap: "Swap currencies",
+        converterSubtitle: "Fast, clear conversions between the cedi, major currencies and crypto.",
+        eyebrow: "Live rates · Fiat & crypto",
+        quickAmounts: "Quick amounts",
+        copy: "Copy result",
+        copied: "Copied",
+        liveRates: "Live now — your money at today's rate.",
+        footerNote: "Indicative rates for information only. Sources: ExchangeRate-API and CoinGecko.",
+        from: "Base currency",
+        to: "Quote currency",
+        fromCurrency: "Base currency",
+        toCurrency: "Quote currency",
+        amountLabel: "Amount in base currency",
+        amountPlaceholder: "0.00",
+        resultLabel: "Converted amount in quote currency",
+        resultPlaceholder: "0.00",
+        swap: "Swap base and quote currencies",
         refresh: "Refresh rates",
         rateDate: "Rate date",
         lastUpdated: "Last updated",
-        offlineRates: "Offline rates.",
+        offlineRates: "Offline — showing your last saved rate.",
         lessThanMinute: "less than a minute ago",
         minuteAgo: "minute",
         minutesAgo: "minutes",
         converting: "Converting...",
-        enterAmount: "Enter an amount greater than zero.",
+        enterAmount: "Enter an amount greater than or equal to zero.",
+        dismiss: "Dismiss",
         conversionFailed: "Conversion failed.",
         invalidResponse: "Received an invalid response from the server.",
         connectionError: "Unable to connect to the server.",
@@ -73,30 +94,38 @@ const translations = {
     fr: {
         clockLabel: "Date et heure actuelles",
         themeLabel: "Thème de couleur",
+        openSettings: "Ouvrir les paramètres",
         light: "Clair",
         dark: "Sombre",
         language: "Langue",
-        ratesTitle: "Taux du jour",
+        ratesTitle: "Faites compter chaque cedi",
         alertTitle: "Alerte",
-        converterSubtitle: "Convertissez des devises instantanément",
-        from: "De :",
-        to: "Vers :",
-        fromCurrency: "Devise de départ",
-        toCurrency: "Devise d'arrivée",
-        amountLabel: "Montant à convertir",
-        amountPlaceholder: "Saisissez un montant",
-        resultLabel: "Montant converti",
-        resultPlaceholder: "Montant converti",
-        swap: "Inverser les devises",
+        converterSubtitle: "Des conversions rapides et claires entre le cedi, les grandes devises et la crypto.",
+        eyebrow: "Taux en direct · Devises & crypto",
+        quickAmounts: "Montants rapides",
+        copy: "Copier le résultat",
+        copied: "Copié",
+        liveRates: "En direct — votre argent au taux du jour.",
+        footerNote: "Taux indicatifs, à titre d'information. Sources : ExchangeRate-API et CoinGecko.",
+        from: "Devise de base",
+        to: "Devise de cotation",
+        fromCurrency: "Devise de base",
+        toCurrency: "Devise de cotation",
+        amountLabel: "Montant en devise de base",
+        amountPlaceholder: "0.00",
+        resultLabel: "Montant converti en devise de cotation",
+        resultPlaceholder: "0.00",
+        swap: "Inverser les devises de base et de cotation",
         refresh: "Actualiser les taux",
         rateDate: "Date du taux",
         lastUpdated: "Dernière mise à jour",
-        offlineRates: "Taux hors ligne.",
+        offlineRates: "Hors ligne — dernier taux enregistré.",
         lessThanMinute: "il y a moins d'une minute",
         minuteAgo: "minute",
         minutesAgo: "minutes",
         converting: "Conversion en cours...",
-        enterAmount: "Saisissez un montant supérieur à zéro.",
+        enterAmount: "Saisissez un montant supérieur ou égal à zéro.",
+        dismiss: "Fermer",
         conversionFailed: "Échec de la conversion.",
         invalidResponse: "Le serveur a renvoyé une réponse invalide.",
         connectionError: "Impossible de se connecter au serveur.",
@@ -110,14 +139,69 @@ function translate(key) {
     return translations[currentLanguage][key] || translations.en[key] || key;
 }
 
+function translateErrorMessage(message) {
+    const key = Object.keys(translations.en).find((translationKey) =>
+        translations.en[translationKey] === message ||
+        translations.fr[translationKey] === message
+    );
+    return key ? translate(key) : translateServerMessage(message);
+}
+
+function clearErrorTimer() {
+    window.clearTimeout(errorTimer);
+    errorTimer = null;
+    errorTimerStartedAt = null;
+}
+
+function startErrorTimer() {
+    if (errorTimer || errorTimerPaused || errorNotification.hidden) return;
+
+    errorTimerStartedAt = Date.now();
+    errorTimer = window.setTimeout(() => {
+        errorNotification.hidden = true;
+        clearErrorTimer();
+        errorTimeRemaining = 10_000;
+    }, errorTimeRemaining);
+}
+
+function pauseErrorTimer() {
+    if (errorTimerPaused) return;
+    errorTimerPaused = true;
+    if (errorTimer) {
+        errorTimeRemaining = Math.max(0, errorTimeRemaining - (Date.now() - errorTimerStartedAt));
+        clearErrorTimer();
+    }
+}
+
+function resumeErrorTimer() {
+    if (!errorTimerPaused) return;
+    errorTimerPaused = false;
+    startErrorTimer();
+}
+
+function updateErrorTimerPause() {
+    if (errorHovered || errorFocused) pauseErrorTimer();
+    else resumeErrorTimer();
+}
+
 function setErrorMessage(message) {
+    clearErrorTimer();
+    errorTimeRemaining = 10_000;
+    if (!message) {
+        errorTimerPaused = false;
+        errorHovered = false;
+        errorFocused = false;
+    }
     errorMessage.textContent = message;
     errorNotification.hidden = !message;
+    if (message) startErrorTimer();
 }
 
 function translateServerMessage(message) {
     const frenchMessages = {
         "Enter an amount greater than zero.": "Saisissez un montant supérieur à zéro.",
+        "Enter an amount greater than or equal to zero.":
+            "Saisissez un montant supérieur ou égal à zéro.",
         "Choose a supported currency.": "Choisissez une devise prise en charge.",
         "The current rate is unavailable. Please try again.": "Le taux actuel est indisponible. Réessayez.",
         "Exchange rates are temporarily unavailable.": "Les taux de change sont temporairement indisponibles.",
@@ -144,15 +228,17 @@ function applyLanguage(language, persist = false) {
     document.querySelectorAll("[data-i18n-placeholder]").forEach((element) => {
         element.placeholder = translate(element.dataset.i18nPlaceholder);
     });
+    window.clearTimeout(copyResetTimer);
+    copyLabel.textContent = translate("copy");
 
     languageSelect.value = currentLanguage;
     updateHeaderClock();
     updatePickerLanguage();
     updateLastUpdated();
     updateRateInfo();
-    setErrorMessage(latestError
-        ? translateServerMessage(latestError)
-        : "");
+    if (!errorNotification.hidden && latestError) {
+        errorMessage.textContent = translateErrorMessage(latestError);
+    }
     if (persist) {
         try {
             localStorage.setItem("currency-converter-language", currentLanguage);
@@ -229,6 +315,29 @@ function initializeTheme() {
 
     themeLightButton.addEventListener("click", () => applyTheme("light", true));
     themeDarkButton.addEventListener("click", () => applyTheme("dark", true));
+}
+
+function initializeHeaderMenu() {
+    const closeMenu = () => {
+        headerTools.classList.remove("is-open");
+        headerMenuToggle.setAttribute("aria-expanded", "false");
+    };
+
+    headerMenuToggle.addEventListener("click", () => {
+        const isOpen = headerTools.classList.toggle("is-open");
+        headerMenuToggle.setAttribute("aria-expanded", String(isOpen));
+    });
+    document.addEventListener("click", (event) => {
+        if (!headerTools.contains(event.target) && !headerMenuToggle.contains(event.target)) {
+            closeMenu();
+        }
+    });
+    document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && headerTools.classList.contains("is-open")) {
+            closeMenu();
+            headerMenuToggle.focus();
+        }
+    });
 }
 
 function initializeCurrencyPicker(select, labelKey) {
@@ -427,7 +536,8 @@ function saveRate(rateData) {
 function updateConversionResult(rate) {
     const amount = Number(amountInput.value.trim());
     if (!amountInput.value.trim() || !Number.isFinite(amount) || amount <= 0) {
-        resultInput.value = "";
+        resultInput.value = "0.00";
+        copyButton.disabled = true;
         return;
     }
 
@@ -436,6 +546,12 @@ function updateConversionResult(rate) {
         minimumFractionDigits: 2,
         maximumFractionDigits: precision
     });
+    copyButton.disabled = resultInput.value === "0.00";
+}
+
+function clearConversionResult() {
+    resultInput.value = "0.00";
+    copyButton.disabled = true;
 }
 
 function displayRate(rateData, isOffline) {
@@ -454,10 +570,12 @@ function displayRate(rateData, isOffline) {
 
 function updateLastUpdated() {
     if (latestUpdatedAt === null) {
+        rateRow.dataset.state = "idle";
         lastUpdated.textContent = "";
         return;
     }
 
+    rateRow.dataset.state = latestWasOffline ? "offline" : "live";
     const minutes = Math.max(0, Math.floor((Date.now() / 1000 - latestUpdatedAt) / 60));
     let age;
     if (currentLanguage === "fr") {
@@ -469,8 +587,57 @@ function updateLastUpdated() {
             ? translate("lessThanMinute")
             : `${minutes} ${minutes === 1 ? translate("minuteAgo") : translate("minutesAgo")} ago`;
     }
-    const offlinePrefix = latestWasOffline ? `${translate("offlineRates")} ` : "";
-    lastUpdated.textContent = `${offlinePrefix}${translate("lastUpdated")} ${age}`;
+    const statusPrefix = latestWasOffline
+        ? `${translate("offlineRates")} `
+        : `${translate("liveRates")} `;
+    lastUpdated.textContent = `${statusPrefix}${translate("lastUpdated")} ${age}`;
+}
+
+async function copyConversionResult() {
+    const text = resultInput.value;
+    if (copyButton.disabled || !text || text === "0.00") return;
+
+    let copied = false;
+    let clipboardError;
+    try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(text);
+            copied = true;
+        }
+    } catch (error) {
+        clipboardError = error;
+    }
+
+    if (!copied) {
+        const previousFocus = document.activeElement;
+        const copyInput = document.createElement("textarea");
+        copyInput.value = text;
+        copyInput.setAttribute("readonly", "");
+        copyInput.style.position = "fixed";
+        copyInput.style.opacity = "0";
+        document.body.append(copyInput);
+        copyInput.select();
+        try {
+            copied = document.execCommand("copy");
+        } catch (error) {
+            clipboardError = error;
+        } finally {
+            copyInput.remove();
+            if (previousFocus instanceof HTMLElement) previousFocus.focus();
+        }
+    }
+
+    if (!copied) {
+        console.error("Could not copy the conversion result:",
+            clipboardError || new Error("The clipboard copy command was unavailable."));
+        return;
+    }
+
+    copyLabel.textContent = translate("copied");
+    window.clearTimeout(copyResetTimer);
+    copyResetTimer = window.setTimeout(() => {
+        copyLabel.textContent = translate("copy");
+    }, 1800);
 }
 
 function updateRateInfo() {
@@ -551,22 +718,22 @@ async function convertCurrency(rateOnly = false) {
         latestUpdatedAt = null;
         updateRateInfo();
         updateLastUpdated();
-        resultInput.value = "";
+        clearConversionResult();
     }
     latestError = null;
     setErrorMessage("");
 
-    if (!rateOnly && hasAmount && (!Number.isFinite(Number(amount)) || Number(amount) <= 0)) {
-        latestError = translate("enterAmount");
-        setErrorMessage(translateServerMessage(latestError));
+    if (!rateOnly && (amountInput.validity.badInput ||
+        (hasAmount && (!Number.isFinite(Number(amount)) || Number(amount) < 0)))) {
+        clearConversionResult();
+        latestError = translations.en.enterAmount;
+        setErrorMessage(translateErrorMessage(latestError));
         return;
     }
 
     if (!cachedRate) {
-        resultInput.value = "";
+        clearConversionResult();
     }
-    resultInput.placeholder = translate("converting");
-
     try {
         const response = await fetch(CONVERSION_API_URL, {
             method: "POST",
@@ -574,7 +741,7 @@ async function convertCurrency(rateOnly = false) {
                 "Content-Type": "application/json"
             },
             body: JSON.stringify({
-                amount: !rateOnly && hasAmount ? amount : "1",
+                amount: !rateOnly && hasAmount && Number(amount) > 0 ? amount : "1",
                 from,
                 to
             })
@@ -585,17 +752,17 @@ async function convertCurrency(rateOnly = false) {
         try {
             data = JSON.parse(responseBody);
         } catch {
-            throw new Error(translate("invalidResponse"));
+            throw new Error(translations.en.invalidResponse);
         }
 
         if (currentRequest !== requestId) return;
 
         if (!data || typeof data !== "object" || Array.isArray(data)) {
-            throw new Error(translate("invalidResponse"));
+            throw new Error(translations.en.invalidResponse);
         }
 
         if (!response.ok) {
-            throw new Error(translateServerMessage(data.error || translate("conversionFailed")));
+            throw new Error(data.error || translations.en.conversionFailed);
         }
 
         const converted = Number(data.converted);
@@ -604,7 +771,7 @@ async function convertCurrency(rateOnly = false) {
         if (!Number.isFinite(converted) || !Number.isFinite(rate) ||
             !Number.isFinite(updatedAt) || typeof data.date !== "string" ||
             data.from !== from || data.to !== to || rate <= 0) {
-            throw new Error(translate("invalidResponse"));
+            throw new Error(translations.en.invalidResponse);
         }
 
         const rateData = {
@@ -626,12 +793,12 @@ async function convertCurrency(rateOnly = false) {
             latestError = null;
             setErrorMessage("");
         } else {
-            latestError = error instanceof Error ? error.message : translate("connectionError");
-            setErrorMessage(translateServerMessage(latestError));
-        }
-    } finally {
-        if (currentRequest === requestId) {
-            resultInput.placeholder = translate("resultPlaceholder");
+            latestError = error instanceof TypeError
+                ? translations.en.connectionError
+                : error instanceof Error
+                    ? error.message
+                    : translations.en.connectionError;
+            setErrorMessage(translateErrorMessage(latestError));
         }
     }
 }
@@ -639,6 +806,9 @@ async function convertCurrency(rateOnly = false) {
 function scheduleConversion() {
     window.clearTimeout(debounceTimer);
     requestId += 1;
+    if (!amountInput.value.trim() || Number(amountInput.value) === 0) {
+        clearConversionResult();
+    }
     debounceTimer = window.setTimeout(convertCurrency, 300);
 }
 
@@ -648,11 +818,32 @@ function updatePickerAvailability(currencyPickers) {
 }
 
 async function initialize() {
+    errorNotification.addEventListener("mouseenter", () => {
+        errorHovered = true;
+        updateErrorTimerPause();
+    });
+    errorNotification.addEventListener("mouseleave", () => {
+        errorHovered = false;
+        updateErrorTimerPause();
+    });
+    errorNotification.addEventListener("focusin", () => {
+        errorFocused = true;
+        updateErrorTimerPause();
+    });
+    errorNotification.addEventListener("focusout", (event) => {
+        if (!errorNotification.contains(event.relatedTarget)) {
+            errorFocused = false;
+            updateErrorTimerPause();
+        }
+    });
+    dismissErrorButton.addEventListener("click", () => setErrorMessage(""));
+
     updateHeaderClock();
     window.setInterval(updateHeaderClock, 1000);
     window.setInterval(updateLastUpdated, 60_000);
     initializeTheme();
     initializeLanguage();
+    initializeHeaderMenu();
     loadSavedRates();
 
     await loadCurrencies();
@@ -674,6 +865,14 @@ async function initialize() {
     });
 
     amountInput.addEventListener("input", scheduleConversion);
+    document.querySelectorAll(".chip").forEach((chip) => {
+        chip.addEventListener("click", () => {
+            amountInput.value = chip.dataset.amount;
+            convertCurrency();
+            amountInput.focus();
+        });
+    });
+    copyButton.addEventListener("click", copyConversionResult);
     fromCurrency.addEventListener("change", () => {
         updateCurrencySymbols();
         convertCurrency();
@@ -706,9 +905,9 @@ async function initialize() {
 }
 
 initialize().catch((error) => {
-    const message = error instanceof Error
+    latestError = error instanceof Error
         ? error.message
-        : translate("initializeError");
-    setErrorMessage(message);
+        : translations.en.initializeError;
+    setErrorMessage(translateErrorMessage(latestError));
     console.error("Currency converter initialization failed:", error);
 });

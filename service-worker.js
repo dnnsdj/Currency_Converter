@@ -1,4 +1,4 @@
-const SHELL_CACHE = "currency-converter-shell-v5";
+const SHELL_CACHE = "currency-converter-shell-v7";
 const RATE_CACHE = "currency-converter-rates-v2";
 const APP_CACHE_PREFIX = "currency-converter-";
 
@@ -16,6 +16,9 @@ self.addEventListener("install", (event) => {
             "css/style.css",
             "assets/fontawesome/css/all.min.css",
             "assets/fontawesome/webfonts/fa-solid-900.woff2",
+            "assets/brand/logo-mark.svg",
+            "assets/brand/favicon.svg",
+            "assets/fonts/ibm-plex-sans-latin.woff2",
             "js/script.js",
             "config/currencies.json",
             ...assets

@@ -4,31 +4,50 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Currency Converter</title>
+    <link rel="icon" type="image/svg+xml" href="assets/brand/favicon.svg" />
+    <meta name="theme-color" content="#0b7a5a" />
     <link rel="stylesheet" href="assets/fontawesome/css/all.min.css" />
     <link rel="stylesheet" href="css/style.css" />
   </head>
 
   <body>
     <header class="site-header">
-      <div class="site-header__brand" aria-label="Dez">Dez</div>
+      <div class="site-header__brand" aria-label="Dez">
+        <img src="assets/brand/logo-mark.svg" alt="" width="44" height="44" />
+      </div>
       <h1 class="site-header__title">Currency Converter</h1>
-      <div class="site-header__meta" aria-label="Current date and time" data-i18n-aria-label="clockLabel">
-        <time class="site-header__time-pill" id="current-date"></time>
-        <time class="site-header__time-pill" id="current-time"></time>
-        <div class="theme-switch" role="group" aria-label="Color theme" data-i18n-aria-label="themeLabel">
-          <span class="theme-switch__indicator" aria-hidden="true"></span>
-          <button type="button" class="theme-switch__button" id="theme-light" aria-pressed="true" data-i18n-aria-label="light">
-            <i class="fa-solid fa-sun" aria-hidden="true"></i>
-          </button>
-          <button type="button" class="theme-switch__button" id="theme-dark" aria-pressed="false" data-i18n-aria-label="dark">
-            <i class="fa-solid fa-moon" aria-hidden="true"></i>
-          </button>
+      <button
+        type="button"
+        class="site-header__menu-toggle"
+        id="header-menu-toggle"
+        aria-controls="header-tools"
+        aria-expanded="false"
+        aria-label="Open settings"
+        data-i18n-aria-label="openSettings"
+      >
+        <i class="fa-solid fa-bars" aria-hidden="true"></i>
+      </button>
+      <div class="site-header__meta">
+        <div class="site-header__clock" aria-label="Current date and time" data-i18n-aria-label="clockLabel">
+          <time class="site-header__time-pill" id="current-date"></time>
+          <time class="site-header__time-pill" id="current-time"></time>
         </div>
-        <label class="visually-hidden" for="language-select" data-i18n="language">Language</label>
-        <select id="language-select" class="language-select" aria-label="Language" data-i18n-aria-label="language">
-          <option value="en">English</option>
-          <option value="fr">Français</option>
-        </select>
+        <div class="site-header__tools" id="header-tools">
+          <div class="theme-switch" role="group" aria-label="Color theme" data-i18n-aria-label="themeLabel">
+            <span class="theme-switch__indicator" aria-hidden="true"></span>
+            <button type="button" class="theme-switch__button" id="theme-light" aria-pressed="true" data-i18n-aria-label="light">
+              <i class="fa-solid fa-sun" aria-hidden="true"></i>
+            </button>
+            <button type="button" class="theme-switch__button" id="theme-dark" aria-pressed="false" data-i18n-aria-label="dark">
+              <i class="fa-solid fa-moon" aria-hidden="true"></i>
+            </button>
+          </div>
+          <label class="visually-hidden" for="language-select" data-i18n="language">Language</label>
+          <select id="language-select" class="language-select" aria-label="Language" data-i18n-aria-label="language">
+            <option value="en">English</option>
+            <option value="fr">Français</option>
+          </select>
+        </div>
       </div>
     </header>
 
@@ -36,8 +55,9 @@
       <div class="converter">
         <div class="converter__intro">
           <div class="converter__intro-copy">
-            <h2 class="converter__title" data-i18n="ratesTitle">Today's Rates</h2>
-            <p class="converter__subtitle" data-i18n="converterSubtitle">Convert currencies instantly</p>
+            <span class="converter__badge" data-i18n="eyebrow">Live rates · Fiat &amp; crypto</span>
+            <h2 class="converter__title" data-i18n="ratesTitle">Make every cedi count</h2>
+            <p class="converter__subtitle" data-i18n="converterSubtitle">Fast, clear conversions between the cedi, major currencies and crypto.</p>
           </div>
           <button
             type="button"
@@ -52,16 +72,16 @@
 
         <div class="converter__panels">
           <div class="converter__panel converter__panel--from">
-            <label class="converter__label" for="from-currency" data-i18n="from">From:</label>
+            <label class="converter__label" for="from-currency" data-i18n="from">Base currency</label>
 
             <div class="converter__field">
               <span class="converter__currency-symbol" id="from-symbol" aria-hidden="true"></span>
-              <label class="visually-hidden" for="amount" data-i18n="amountLabel">Amount to convert</label>
+              <label class="visually-hidden" for="amount" data-i18n="amountLabel">Amount in base currency</label>
               <input
                 type="number"
                 name="amount"
                 id="amount"
-                placeholder="Enter amount"
+                placeholder="0.00"
                 data-i18n-placeholder="amountPlaceholder"
                 class="converter__input"
                 min="0"
@@ -72,23 +92,30 @@
                 name="from-currency"
                 id="from-currency"
                 class="converter__select"
-                aria-label="From currency"
+                aria-label="Base currency"
+                data-i18n-aria-label="fromCurrency"
               >
               </select>
+            </div>
+            <div class="quick-amounts" role="group" aria-label="Quick amounts" data-i18n-aria-label="quickAmounts">
+              <button type="button" class="chip" data-amount="10">10</button>
+              <button type="button" class="chip" data-amount="100">100</button>
+              <button type="button" class="chip" data-amount="500">500</button>
+              <button type="button" class="chip" data-amount="1000">1,000</button>
             </div>
             <p id="rate-info-from" class="converter__panel-rate" aria-live="polite"></p>
           </div>
 
           <div class="converter__panel converter__panel--to">
-            <label class="converter__label" for="to-currency" data-i18n="to">To:</label>
+            <label class="converter__label" for="to-currency" data-i18n="to">Quote currency</label>
 
             <div class="converter__field">
               <span class="converter__currency-symbol" id="to-symbol" aria-hidden="true"></span>
-              <label class="visually-hidden" for="result" data-i18n="resultLabel">Converted amount</label>
+              <label class="visually-hidden" for="result" data-i18n="resultLabel">Converted amount in quote currency</label>
               <input
                 type="text"
                 id="result"
-                placeholder="Converted amount"
+                placeholder="0.00"
                 data-i18n-placeholder="resultPlaceholder"
                 class="converter__input"
                 readonly
@@ -98,7 +125,8 @@
                 name="to-currency"
                 id="to-currency"
                 class="converter__select"
-                aria-label="To currency"
+                aria-label="Quote currency"
+                data-i18n-aria-label="toCurrency"
               >
               </select>
             </div>
@@ -106,17 +134,30 @@
           </div>
 
           <div class="converter__swap">
-            <button type="button" class="converter__swap-btn" aria-label="Swap currencies" data-i18n-aria-label="swap">&#8645;</button>
+            <button type="button" class="converter__swap-btn" aria-label="Swap base and quote currencies" data-i18n-aria-label="swap">&#8645;</button>
           </div>
         </div>
 
-        <div class="converter__rate-row">
-          <span id="last-updated" class="converter__updated" aria-live="polite"></span>
+        <div class="converter__rate-row" data-state="idle">
+          <span class="converter__status">
+            <span class="converter__dot" aria-hidden="true"></span>
+            <span id="last-updated" class="converter__updated" aria-live="polite"></span>
+          </span>
+          <button type="button" id="copy-result" class="text-button" disabled>
+            <i class="fa-solid fa-copy" aria-hidden="true"></i>
+            <span id="copy-label" data-i18n="copy">Copy result</span>
+          </button>
         </div>
       </div>
     </main>
+    <footer class="site-footer">
+      <p data-i18n="footerNote">Indicative rates for information only. Sources: ExchangeRate-API and CoinGecko.</p>
+    </footer>
     <aside id="error-notification" class="error-notification" role="alert" aria-live="assertive" hidden>
-      <h2 class="error-notification__title" data-i18n="alertTitle">Alert</h2>
+      <div class="error-notification__header">
+        <h2 class="error-notification__title" data-i18n="alertTitle">Alert</h2>
+        <button type="button" id="dismiss-error" class="error-notification__close" aria-label="Dismiss" data-i18n-aria-label="dismiss">×</button>
+      </div>
       <hr class="error-notification__divider" />
       <p id="error-message" class="error-notification__message"></p>
     </aside>
