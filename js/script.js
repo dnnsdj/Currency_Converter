@@ -3,7 +3,9 @@ const resultInput = document.querySelector("#result");
 const fromCurrency = document.querySelector("#from-currency");
 const toCurrency = document.querySelector("#to-currency");
 const swapButton = document.querySelector(".converter__swap-btn");
-const rateInfo = document.querySelector("#rate-info");
+const rateInfoFrom = document.querySelector("#rate-info-from");
+const rateInfoTo = document.querySelector("#rate-info-to");
+const errorNotification = document.querySelector("#error-notification");
 const errorMessage = document.querySelector("#error-message");
 const currentDate = document.querySelector("#current-date");
 const currentTime = document.querySelector("#current-time");
@@ -14,12 +16,9 @@ const refreshButton = document.querySelector("#refresh-rates");
 const themeLightButton = document.querySelector("#theme-light");
 const themeDarkButton = document.querySelector("#theme-dark");
 const languageSelect = document.querySelector("#language-select");
-const alertForm = document.querySelector("#alert-form");
-const alertType = document.querySelector("#alert-type");
-const alertDirection = document.querySelector("#alert-direction");
-const alertThreshold = document.querySelector("#alert-threshold");
-const alertThresholdDescription = document.querySelector("#alert-threshold-description");
-const alertStatus = document.querySelector("#alert-status");
+const RATE_STORAGE_KEY = "currency-converter-rates";
+const CURRENCY_STORAGE_KEY = "currency-converter-currencies";
+const RATE_REFRESH_INTERVAL = 30 * 60 * 1000;
 
 let requestId = 0;
 let debounceTimer;
@@ -27,8 +26,7 @@ let latestUpdatedAt = null;
 let latestWasOffline = false;
 let latestRate = null;
 let latestError = null;
-let alertSubmissionError = null;
-let alertSubmissionSucceeded = false;
+let savedRates = {};
 let currencyPrecision = {};
 let currencySymbols = {};
 let currentLanguage = "en";
@@ -42,6 +40,7 @@ const translations = {
         dark: "Dark",
         language: "Language",
         ratesTitle: "Today's Rates",
+        alertTitle: "Alert",
         converterSubtitle: "Convert currencies instantly",
         from: "From:",
         to: "To:",
@@ -53,28 +52,12 @@ const translations = {
         resultPlaceholder: "Converted amount",
         swap: "Swap currencies",
         refresh: "Refresh rates",
-        alertTitle: "Email me a rate alert",
-        alertIntro: "Get one email when a rate crosses your target or moves by a chosen percentage.",
-        email: "Email address",
-        alertType: "Alert type",
-        targetType: "Target exchange rate",
-        percentType: "Percentage move",
-        alertCondition: "Alert condition",
-        targetRate: "Target rate (in the selected To currency)",
-        percentChange: "Percentage change (from the current rate)",
-        targetAbove: "Rises to or above the target",
-        targetBelow: "Falls to or below the target",
-        percentEither: "Moves up or down",
-        percentUp: "Moves up",
-        percentDown: "Moves down",
-        consent: "Email me one alert for this condition. I understand I need to confirm my email.",
-        createAlert: "Create email alert",
         rateDate: "Rate date",
         lastUpdated: "Last updated",
         offlineRates: "Offline rates.",
         lessThanMinute: "less than a minute ago",
-        minuteAgo: "minute ago",
-        minutesAgo: "minutes ago",
+        minuteAgo: "minute",
+        minutesAgo: "minutes",
         converting: "Converting...",
         enterAmount: "Enter an amount greater than zero.",
         conversionFailed: "Conversion failed.",
@@ -82,10 +65,7 @@ const translations = {
         connectionError: "Unable to connect to the server.",
         initializeError: "Unable to initialize the currency converter.",
         loadCurrenciesError: "Unable to load the currency list.",
-        invalidCurrencies: "The currency list is invalid.",
-        alertSuccess: "Check your email to confirm this rate alert.",
-        alertFailure: "Could not create the email alert.",
-        alertConnectionError: "Unable to create the email alert."
+        invalidCurrencies: "The currency list is invalid."
     },
     fr: {
         clockLabel: "Date et heure actuelles",
@@ -94,6 +74,7 @@ const translations = {
         dark: "Sombre",
         language: "Langue",
         ratesTitle: "Taux du jour",
+        alertTitle: "Alerte",
         converterSubtitle: "Convertissez des devises instantanément",
         from: "De :",
         to: "Vers :",
@@ -105,22 +86,6 @@ const translations = {
         resultPlaceholder: "Montant converti",
         swap: "Inverser les devises",
         refresh: "Actualiser les taux",
-        alertTitle: "Recevoir une alerte par e-mail",
-        alertIntro: "Recevez un e-mail lorsque le taux atteint votre objectif ou varie du pourcentage choisi.",
-        email: "Adresse e-mail",
-        alertType: "Type d'alerte",
-        targetType: "Taux de change cible",
-        percentType: "Variation en pourcentage",
-        alertCondition: "Condition de l'alerte",
-        targetRate: "Taux cible (dans la devise sélectionnée)",
-        percentChange: "Variation en pourcentage (depuis le taux actuel)",
-        targetAbove: "Atteint ou dépasse le taux cible",
-        targetBelow: "Atteint ou passe sous le taux cible",
-        percentEither: "Augmente ou diminue",
-        percentUp: "Augmente",
-        percentDown: "Diminue",
-        consent: "M'envoyer une alerte pour cette condition. Je comprends que je dois confirmer mon adresse e-mail.",
-        createAlert: "Créer une alerte par e-mail",
         rateDate: "Date du taux",
         lastUpdated: "Dernière mise à jour",
         offlineRates: "Taux hors ligne.",
@@ -134,10 +99,7 @@ const translations = {
         connectionError: "Impossible de se connecter au serveur.",
         initializeError: "Impossible d'initialiser le convertisseur.",
         loadCurrenciesError: "Impossible de charger la liste des devises.",
-        invalidCurrencies: "La liste des devises est invalide.",
-        alertSuccess: "Consultez votre e-mail pour confirmer cette alerte de taux.",
-        alertFailure: "Impossible de créer l'alerte par e-mail.",
-        alertConnectionError: "Impossible de créer l'alerte par e-mail."
+        invalidCurrencies: "La liste des devises est invalide."
     }
 };
 
@@ -145,31 +107,22 @@ function translate(key) {
     return translations[currentLanguage][key] || translations.en[key] || key;
 }
 
+function setErrorMessage(message) {
+    errorMessage.textContent = message;
+    errorNotification.hidden = !message;
+}
+
 function translateServerMessage(message) {
     const frenchMessages = {
         "Enter an amount greater than zero.": "Saisissez un montant supérieur à zéro.",
         "Choose a supported currency.": "Choisissez une devise prise en charge.",
-        "Choose supported currencies.": "Choisissez des devises prises en charge.",
-        "Choose two different supported currencies and an alert type.":
-            "Choisissez deux devises différentes et un type d'alerte.",
-        "Enter a valid email address.": "Saisissez une adresse e-mail valide.",
-        "Enter a threshold greater than zero.": "Saisissez un seuil supérieur à zéro.",
-        "Choose a valid alert direction and threshold.": "Choisissez une direction et un seuil valides.",
         "The current rate is unavailable. Please try again.": "Le taux actuel est indisponible. Réessayez.",
         "Exchange rates are temporarily unavailable.": "Les taux de change sont temporairement indisponibles.",
         "The exchange-rate service returned invalid data.":
             "Le service de change a renvoyé des données invalides.",
         "The converted amount is too large.": "Le montant converti est trop élevé.",
         "Request body must be valid JSON.": "Le corps de la requête doit être un JSON valide.",
-        "Only POST requests are supported.": "Seules les requêtes POST sont acceptées.",
-        "Choose two different currencies and an alert type.":
-            "Choisissez deux devises différentes et un type d'alerte.",
-        "Choose a valid alert direction and threshold.":
-            "Choisissez une direction et un seuil valides.",
-        "Too many alert requests. Please try again in an hour.":
-            "Trop de demandes d'alerte. Réessayez dans une heure.",
-        "Too many alerts have been requested for this email address today.":
-            "Trop d'alertes ont été demandées pour cette adresse aujourd'hui."
+        "Only POST requests are supported.": "Seules les requêtes POST sont acceptées."
     };
     return currentLanguage === "fr" ? (frenchMessages[message] || message) : message;
 }
@@ -192,18 +145,11 @@ function applyLanguage(language, persist = false) {
     languageSelect.value = currentLanguage;
     updateHeaderClock();
     updatePickerLanguage();
-    updateAlertOptions();
     updateLastUpdated();
     updateRateInfo();
-    errorMessage.textContent = latestError
+    setErrorMessage(latestError
         ? translateServerMessage(latestError)
-        : "";
-    alertStatus.textContent = alertSubmissionSucceeded
-        ? translate("alertSuccess")
-        : alertSubmissionError
-            ? translateServerMessage(alertSubmissionError)
-            : "";
-
+        : "");
     if (persist) {
         try {
             localStorage.setItem("currency-converter-language", currentLanguage);
@@ -434,6 +380,75 @@ function updateCurrencySymbols() {
     toSymbol.textContent = currencySymbols[toCurrency.value];
 }
 
+function rateKey(from, to) {
+    return `${from}:${to}`;
+}
+
+function loadSavedRates() {
+    try {
+        const storedRates = JSON.parse(localStorage.getItem(RATE_STORAGE_KEY) || "{}");
+        if (!storedRates || typeof storedRates !== "object" || Array.isArray(storedRates)) {
+            throw new Error("The saved currency rates are invalid.");
+        }
+
+        savedRates = Object.fromEntries(Object.entries(storedRates).filter(([, rate]) =>
+            rate && typeof rate === "object" &&
+            Number.isFinite(Number(rate.rate)) && Number(rate.rate) > 0 &&
+            typeof rate.date === "string" &&
+            Number.isFinite(Number(rate.updatedAt))
+        ));
+    } catch (error) {
+        console.error("Could not load saved currency rates:", error);
+        savedRates = {};
+    }
+}
+
+function getSavedRate(from, to) {
+    return savedRates[rateKey(from, to)] || null;
+}
+
+function saveRate(rateData) {
+    savedRates[rateKey(rateData.from, rateData.to)] = {
+        rate: rateData.rate,
+        date: rateData.date,
+        updatedAt: rateData.updatedAt
+    };
+
+    try {
+        localStorage.setItem(RATE_STORAGE_KEY, JSON.stringify(savedRates));
+    } catch (error) {
+        console.error("Could not save currency rates for offline use:", error);
+    }
+}
+
+function updateConversionResult(rate) {
+    const amount = Number(amountInput.value.trim());
+    if (!amountInput.value.trim() || !Number.isFinite(amount) || amount <= 0) {
+        resultInput.value = "";
+        return;
+    }
+
+    const precision = currencyPrecision[toCurrency.value] || 2;
+    resultInput.value = (amount * rate).toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: precision
+    });
+}
+
+function displayRate(rateData, isOffline) {
+    latestRate = {
+        from: rateData.from,
+        to: rateData.to,
+        rate: Number(rateData.rate),
+        date: rateData.date
+    };
+    latestUpdatedAt = Number(rateData.updatedAt);
+    latestWasOffline = isOffline;
+    updateRateInfo();
+    updateLastUpdated();
+    updateConversionResult(latestRate.rate);
+}
+
 function updateLastUpdated() {
     if (latestUpdatedAt === null) {
         lastUpdated.textContent = "";
@@ -457,27 +472,47 @@ function updateLastUpdated() {
 
 function updateRateInfo() {
     if (!latestRate) {
-        rateInfo.textContent = "";
+        rateInfoFrom.textContent = "";
+        rateInfoTo.textContent = "";
         return;
     }
 
-    const ratePrecision = currencyPrecision[latestRate.to] || 4;
-    const formattedDate = new Intl.DateTimeFormat(
-        currentLanguage === "fr" ? "fr-FR" : "en-US",
-        { timeZone: "UTC", dateStyle: "medium" }
-    ).format(new Date(`${latestRate.date}T00:00:00Z`));
-    rateInfo.textContent =
-        `1 ${latestRate.from} = ${latestRate.rate.toFixed(ratePrecision)} ${latestRate.to}` +
-        ` | ${translate("rateDate")}: ${formattedDate}`;
+    const fromPrecision = currencyPrecision[latestRate.from] || 4;
+    const toPrecision = currencyPrecision[latestRate.to] || 4;
+    rateInfoFrom.textContent =
+        `1 ${latestRate.from} = ${latestRate.rate.toFixed(toPrecision)} ${latestRate.to}`;
+    rateInfoTo.textContent =
+        `1 ${latestRate.to} = ${(1 / latestRate.rate).toFixed(fromPrecision)} ${latestRate.from}`;
 }
 
 async function loadCurrencies() {
-    const response = await fetch("config/currencies.json");
-    if (!response.ok) throw new Error(translate("loadCurrenciesError"));
+    let currencies;
+    try {
+        const response = await fetch("config/currencies.json");
+        if (!response.ok) throw new Error(translate("loadCurrenciesError"));
+        currencies = await response.json();
+    } catch (error) {
+        console.warn("Could not fetch the currency list; trying the saved offline copy:", error);
+        try {
+            currencies = JSON.parse(localStorage.getItem(CURRENCY_STORAGE_KEY) || "null");
+        } catch (storageError) {
+            console.error("Could not load the saved currency list:", storageError);
+        }
+    }
 
-    const currencies = await response.json();
-    if (!Array.isArray(currencies) || currencies.length === 0) {
+    if (!Array.isArray(currencies) || currencies.length === 0 ||
+        currencies.some((currency) =>
+            !currency || typeof currency.code !== "string" ||
+            typeof currency.symbol !== "string" || typeof currency.icon !== "string" ||
+            !Number.isFinite(Number(currency.precision))
+        )) {
         throw new Error(translate("invalidCurrencies"));
+    }
+
+    try {
+        localStorage.setItem(CURRENCY_STORAGE_KEY, JSON.stringify(currencies));
+    } catch (error) {
+        console.error("Could not save the currency list for offline use:", error);
     }
 
     currencyPrecision = Object.fromEntries(currencies.map(({ code, precision }) => [code, precision]));
@@ -498,25 +533,35 @@ async function loadCurrencies() {
     }
 }
 
-async function convertCurrency() {
+async function convertCurrency(rateOnly = false) {
     window.clearTimeout(debounceTimer);
     const currentRequest = ++requestId;
     const amount = amountInput.value.trim();
     const hasAmount = amount !== "";
-
-    resultInput.value = "";
-    resultInput.placeholder = translate("resultPlaceholder");
-    latestRate = null;
+    const from = fromCurrency.value;
+    const to = toCurrency.value;
+    const cachedRate = getSavedRate(from, to);
+    if (cachedRate) {
+        displayRate({ from, to, ...cachedRate }, true);
+    } else if (latestRate && (latestRate.from !== from || latestRate.to !== to)) {
+        latestRate = null;
+        latestUpdatedAt = null;
+        updateRateInfo();
+        updateLastUpdated();
+        resultInput.value = "";
+    }
     latestError = null;
-    updateRateInfo();
-    errorMessage.textContent = "";
+    setErrorMessage("");
 
-    if (hasAmount && (!Number.isFinite(Number(amount)) || Number(amount) <= 0)) {
+    if (!rateOnly && hasAmount && (!Number.isFinite(Number(amount)) || Number(amount) <= 0)) {
         latestError = translate("enterAmount");
-        errorMessage.textContent = latestError;
+        setErrorMessage(translateServerMessage(latestError));
         return;
     }
 
+    if (!cachedRate) {
+        resultInput.value = "";
+    }
     resultInput.placeholder = translate("converting");
 
     try {
@@ -526,15 +571,25 @@ async function convertCurrency() {
                 "Content-Type": "application/json"
             },
             body: JSON.stringify({
-                amount: hasAmount ? amount : "1",
-                from: fromCurrency.value,
-                to: toCurrency.value
+                amount: !rateOnly && hasAmount ? amount : "1",
+                from,
+                to
             })
         });
 
-        const data = await response.json();
+        const responseBody = await response.text();
+        let data;
+        try {
+            data = JSON.parse(responseBody);
+        } catch {
+            throw new Error(translate("invalidResponse"));
+        }
 
         if (currentRequest !== requestId) return;
+
+        if (!data || typeof data !== "object" || Array.isArray(data)) {
+            throw new Error(translate("invalidResponse"));
+        }
 
         if (!response.ok) {
             throw new Error(translateServerMessage(data.error || translate("conversionFailed")));
@@ -544,34 +599,33 @@ async function convertCurrency() {
         const rate = Number(data.rate);
         const updatedAt = Number(data.updatedAt);
         if (!Number.isFinite(converted) || !Number.isFinite(rate) ||
-            !Number.isFinite(updatedAt) || typeof data.date !== "string") {
+            !Number.isFinite(updatedAt) || typeof data.date !== "string" ||
+            data.from !== from || data.to !== to || rate <= 0) {
             throw new Error(translate("invalidResponse"));
         }
 
-        if (hasAmount) {
-            const precision = currencyPrecision[data.to] || 2;
-            resultInput.value = converted.toLocaleString(undefined, {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: precision
-            });
-        }
-
-        latestRate = {
+        const rateData = {
             from: data.from,
             to: data.to,
             rate,
-            date: data.date
+            date: data.date,
+            updatedAt
         };
+        saveRate(rateData);
+        displayRate(rateData, response.headers.get("X-Offline-Cache") === "true");
         latestError = null;
-        updateRateInfo();
-        latestUpdatedAt = updatedAt;
-        latestWasOffline = response.headers.get("X-Offline-Cache") === "true";
-        updateLastUpdated();
     } catch (error) {
         if (currentRequest !== requestId) return;
 
-        latestError = error instanceof Error ? error.message : translate("connectionError");
-        errorMessage.textContent = translateServerMessage(latestError);
+        const fallbackRate = getSavedRate(from, to);
+        if (fallbackRate) {
+            displayRate({ from, to, ...fallbackRate }, true);
+            latestError = null;
+            setErrorMessage("");
+        } else {
+            latestError = error instanceof Error ? error.message : translate("connectionError");
+            setErrorMessage(translateServerMessage(latestError));
+        }
     } finally {
         if (currentRequest === requestId) {
             resultInput.placeholder = translate("resultPlaceholder");
@@ -590,80 +644,13 @@ function updatePickerAvailability(currencyPickers) {
     currencyPickers[1].setUnavailable(fromCurrency.value);
 }
 
-function updateAlertOptions() {
-    const isPercent = alertType.value === "percent";
-    const options = isPercent
-        ? [
-            ["either", translate("percentEither")],
-            ["up", translate("percentUp")],
-            ["down", translate("percentDown")]
-        ]
-        : [
-            ["above", translate("targetAbove")],
-            ["below", translate("targetBelow")]
-        ];
-
-    alertDirection.replaceChildren(...options.map(([value, label]) => {
-        const option = document.createElement("option");
-        option.value = value;
-        option.textContent = label;
-        return option;
-    }));
-    alertThresholdDescription.textContent = isPercent
-        ? translate("percentChange")
-        : translate("targetRate");
-    alertThreshold.min = isPercent ? "0.01" : "0.000000000001";
-    alertThreshold.max = isPercent ? "10000" : "";
-    alertThreshold.step = isPercent ? "0.01" : "any";
-}
-
-async function createRateAlert(event) {
-    event.preventDefault();
-    alertSubmissionError = null;
-    alertSubmissionSucceeded = false;
-    alertStatus.textContent = "";
-    const submitButton = alertForm.querySelector('button[type="submit"]');
-    submitButton.disabled = true;
-
-    try {
-        const response = await fetch("api/alerts.php", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                action: "subscribe",
-                email: document.querySelector("#alert-email").value.trim(),
-                from: fromCurrency.value,
-                to: toCurrency.value,
-                alertType: alertType.value,
-                direction: alertDirection.value,
-                threshold: alertThreshold.value
-            })
-        });
-        const data = await response.json();
-        if (!response.ok) {
-            throw new Error(translateServerMessage(data.error || translate("alertFailure")));
-        }
-
-        alertSubmissionSucceeded = true;
-        alertStatus.textContent = translate("alertSuccess");
-        alertForm.reset();
-        updateAlertOptions();
-    } catch (error) {
-        alertSubmissionError = error instanceof Error
-            ? error.message
-            : translate("alertConnectionError");
-        alertStatus.textContent = translateServerMessage(alertSubmissionError);
-    } finally {
-        submitButton.disabled = false;
-    }
-}
-
 async function initialize() {
     updateHeaderClock();
     window.setInterval(updateHeaderClock, 1000);
     window.setInterval(updateLastUpdated, 60_000);
     initializeTheme();
     initializeLanguage();
+    loadSavedRates();
 
     await loadCurrencies();
 
@@ -676,7 +663,6 @@ async function initialize() {
     toCurrency.addEventListener("change", () => updatePickerAvailability(currencyPickers));
     updatePickerAvailability(currencyPickers);
     updateCurrencySymbols();
-    updateAlertOptions();
 
     document.addEventListener("click", (event) => {
         currencyPickers.forEach(({ picker, closePicker }) => {
@@ -693,9 +679,9 @@ async function initialize() {
         updateCurrencySymbols();
         convertCurrency();
     });
-    refreshButton.addEventListener("click", convertCurrency);
-    alertType.addEventListener("change", updateAlertOptions);
-    alertForm.addEventListener("submit", createRateAlert);
+    refreshButton.addEventListener("click", () => convertCurrency(true));
+    window.setInterval(() => convertCurrency(true), RATE_REFRESH_INTERVAL);
+    window.addEventListener("online", () => convertCurrency(true));
 
     swapButton.addEventListener("click", () => {
         const previousFrom = fromCurrency.value;
@@ -708,17 +694,18 @@ async function initialize() {
         convertCurrency();
     });
 
-    convertCurrency();
-
     if ("serviceWorker" in navigator) {
         navigator.serviceWorker.register("service-worker.js")
             .catch((error) => console.error("Service worker registration failed:", error));
     }
+
+    convertCurrency();
 }
 
 initialize().catch((error) => {
-    errorMessage.textContent = error instanceof Error
+    const message = error instanceof Error
         ? error.message
         : translate("initializeError");
+    setErrorMessage(message);
     console.error("Currency converter initialization failed:", error);
 });

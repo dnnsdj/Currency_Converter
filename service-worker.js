@@ -1,5 +1,5 @@
-const SHELL_CACHE = "currency-converter-shell-v3";
-const RATE_CACHE = "currency-converter-rates-v1";
+const SHELL_CACHE = "currency-converter-shell-v5";
+const RATE_CACHE = "currency-converter-rates-v2";
 const APP_CACHE_PREFIX = "currency-converter-";
 
 self.addEventListener("install", (event) => {
@@ -14,6 +14,8 @@ self.addEventListener("install", (event) => {
             "./",
             "index.html",
             "css/style.css",
+            "assets/fontawesome/css/all.min.css",
+            "assets/fontawesome/webfonts/fa-solid-900.woff2",
             "js/script.js",
             "config/currencies.json",
             ...assets
@@ -45,7 +47,27 @@ async function serveCachedRate(cache, key, amount) {
     const cachedResponse = await cache.match(key);
     if (!cachedResponse) return null;
 
-    const data = await cachedResponse.json();
+    let data;
+    try {
+        data = await cachedResponse.json();
+    } catch (error) {
+        console.error("The cached currency rate contains invalid JSON:", error);
+        await cache.delete(key);
+        return null;
+    }
+    const from = new URL(key.url).searchParams.get("from");
+    const to = new URL(key.url).searchParams.get("to");
+    if (!data || typeof data !== "object" || Array.isArray(data) ||
+        data.from !== from || data.to !== to ||
+        !Number.isFinite(Number(data.rate)) || Number(data.rate) <= 0 ||
+        !Number.isFinite(Number(data.converted)) ||
+        !Number.isFinite(Number(data.updatedAt)) ||
+        typeof data.date !== "string") {
+        console.error("The cached currency rate has an invalid response shape.");
+        await cache.delete(key);
+        return null;
+    }
+
     const converted = Number(amount) * Number(data.rate);
     if (!Number.isFinite(converted)) return null;
 
@@ -55,6 +77,13 @@ async function serveCachedRate(cache, key, amount) {
             "Content-Type": "application/json; charset=utf-8",
             "X-Offline-Cache": "true"
         }
+    });
+}
+
+function createConversionErrorResponse(message) {
+    return new Response(JSON.stringify({ error: message }), {
+        status: 502,
+        headers: { "Content-Type": "application/json; charset=utf-8" }
     });
 }
 
@@ -76,6 +105,27 @@ async function handleConversion(request) {
     try {
         const response = await fetch(request.clone());
         if (response.ok) {
+            let data;
+            try {
+                data = await response.clone().json();
+            } catch (error) {
+                console.error("The conversion API returned invalid JSON:", error);
+                const offlineResponse = await serveCachedRate(cache, key, body.amount);
+                return offlineResponse ||
+                    createConversionErrorResponse("The conversion service returned an invalid response.");
+            }
+
+            if (!data || typeof data !== "object" || Array.isArray(data) ||
+                data.from !== body.from || data.to !== body.to ||
+                !Number.isFinite(Number(data.rate)) || Number(data.rate) <= 0 ||
+                !Number.isFinite(Number(data.converted)) ||
+                !Number.isFinite(Number(data.updatedAt)) || typeof data.date !== "string") {
+                console.error("The conversion API returned an invalid response.");
+                const offlineResponse = await serveCachedRate(cache, key, body.amount);
+                return offlineResponse ||
+                    createConversionErrorResponse("The conversion service returned an invalid response.");
+            }
+
             try {
                 await cache.put(key, response.clone());
                 const keys = await cache.keys();

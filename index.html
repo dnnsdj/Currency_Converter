@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Currency Converter</title>
+    <link rel="stylesheet" href="assets/fontawesome/css/all.min.css" />
     <link rel="stylesheet" href="css/style.css" />
   </head>
 
@@ -16,8 +17,12 @@
         <time class="site-header__time-pill" id="current-time"></time>
         <div class="theme-switch" role="group" aria-label="Color theme" data-i18n-aria-label="themeLabel">
           <span class="theme-switch__indicator" aria-hidden="true"></span>
-          <button type="button" class="theme-switch__button" id="theme-light" aria-pressed="true" data-i18n="light">Light</button>
-          <button type="button" class="theme-switch__button" id="theme-dark" aria-pressed="false" data-i18n="dark">Dark</button>
+          <button type="button" class="theme-switch__button" id="theme-light" aria-pressed="true" data-i18n-aria-label="light">
+            <i class="fa-solid fa-sun" aria-hidden="true"></i>
+          </button>
+          <button type="button" class="theme-switch__button" id="theme-dark" aria-pressed="false" data-i18n-aria-label="dark">
+            <i class="fa-solid fa-moon" aria-hidden="true"></i>
+          </button>
         </div>
         <label class="visually-hidden" for="language-select" data-i18n="language">Language</label>
         <select id="language-select" class="language-select" aria-label="Language" data-i18n-aria-label="language">
@@ -30,8 +35,19 @@
     <main class="page">
       <div class="converter">
         <div class="converter__intro">
-          <h2 class="converter__title" data-i18n="ratesTitle">Today's Rates</h2>
-          <p class="converter__subtitle" data-i18n="converterSubtitle">Convert currencies instantly</p>
+          <div class="converter__intro-copy">
+            <h2 class="converter__title" data-i18n="ratesTitle">Today's Rates</h2>
+            <p class="converter__subtitle" data-i18n="converterSubtitle">Convert currencies instantly</p>
+          </div>
+          <button
+            type="button"
+            id="refresh-rates"
+            class="converter__refresh"
+            aria-label="Refresh rates"
+            data-i18n-aria-label="refresh"
+          >
+            <i class="fa-solid fa-arrows-rotate" aria-hidden="true"></i>
+          </button>
         </div>
 
         <div class="converter__panels">
@@ -60,6 +76,7 @@
               >
               </select>
             </div>
+            <p id="rate-info-from" class="converter__panel-rate" aria-live="polite"></p>
           </div>
 
           <div class="converter__panel converter__panel--to">
@@ -85,6 +102,7 @@
               >
               </select>
             </div>
+            <p id="rate-info-to" class="converter__panel-rate" aria-live="polite"></p>
           </div>
 
           <div class="converter__swap">
@@ -93,66 +111,15 @@
         </div>
 
         <div class="converter__rate-row">
-          <p id="rate-info" class="converter__message converter__message--rate" aria-live="polite"></p>
-          <div class="converter__rate-actions">
-            <span id="last-updated" class="converter__updated" aria-live="polite"></span>
-            <button type="button" id="refresh-rates" class="converter__refresh" data-i18n="refresh">Refresh rates</button>
-          </div>
+          <span id="last-updated" class="converter__updated" aria-live="polite"></span>
         </div>
-        <p id="error-message" class="converter__message converter__message--error" role="alert"></p>
-
-        <section class="converter__alert" aria-labelledby="alert-title">
-          <h2 id="alert-title" class="converter__alert-title" data-i18n="alertTitle">Email me a rate alert</h2>
-          <p class="converter__subtitle" data-i18n="alertIntro">
-            Get one email when a rate crosses your target or moves by a chosen percentage.
-          </p>
-          <form id="alert-form" class="converter__alert-form">
-            <label class="converter__alert-field" for="alert-email">
-              <span data-i18n="email">Email address</span>
-              <input
-                type="email"
-                id="alert-email"
-                name="email"
-                autocomplete="email"
-                maxlength="254"
-                required
-              />
-            </label>
-
-            <label class="converter__alert-field" for="alert-type">
-              <span data-i18n="alertType">Alert type</span>
-              <select id="alert-type" name="alert-type">
-                <option value="target" data-i18n="targetType">Target exchange rate</option>
-                <option value="percent" data-i18n="percentType">Percentage move</option>
-              </select>
-            </label>
-
-            <label class="converter__alert-field" for="alert-direction" data-i18n="alertCondition">Alert condition</label>
-            <select id="alert-direction" name="alert-direction"></select>
-
-            <label class="converter__alert-field" id="alert-threshold-label" for="alert-threshold">
-              <span id="alert-threshold-description" data-i18n="targetRate">Target rate (in the selected To currency)</span>
-              <input
-                type="number"
-                id="alert-threshold"
-                name="threshold"
-                min="0.000000000001"
-                step="any"
-                required
-              />
-            </label>
-
-            <label class="converter__alert-consent">
-              <input type="checkbox" id="alert-consent" required />
-              <span data-i18n="consent">Email me one alert for this condition. I understand I need to confirm my email.</span>
-            </label>
-
-            <button type="submit" class="converter__refresh" data-i18n="createAlert">Create email alert</button>
-            <p id="alert-status" class="converter__alert-status" aria-live="polite"></p>
-          </form>
-        </section>
       </div>
     </main>
+    <aside id="error-notification" class="error-notification" role="alert" aria-live="assertive" hidden>
+      <h2 class="error-notification__title" data-i18n="alertTitle">Alert</h2>
+      <hr class="error-notification__divider" />
+      <p id="error-message" class="error-notification__message"></p>
+    </aside>
     <script src="js/script.js"></script>
   </body>
 </html>
