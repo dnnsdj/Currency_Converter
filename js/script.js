@@ -20,7 +20,7 @@ const RATE_STORAGE_KEY = "currency-converter-rates";
 const CURRENCY_STORAGE_KEY = "currency-converter-currencies";
 const RATE_REFRESH_INTERVAL = 30 * 60 * 1000;
 const CONVERSION_API_URL = window.location.hostname === "dnnsdj.github.io"
-    ? "https://currency-converter-api.onrender.com/api/convert.php"
+    ? "https://currency-converter-api-nvun.onrender.com/api/convert.php"
     : "api/convert.php";
 
 let requestId = 0;

@@ -48,5 +48,5 @@ Successful responses contain `from`, `to`, `rate`, `converted`, `date`, and the 
 ## Deployment
 
 - GitHub Pages publishes the repository root when changes are pushed to `main`. Once Pages is enabled, the site is available at `https://dnnsdj.github.io/Currency_Converter/`.
-- Render deploys the PHP API from [`render.yaml`](render.yaml) using the included [`Dockerfile`](Dockerfile). The frontend is configured to call `https://currency-converter-api.onrender.com/api/convert.php`.
+- Render deploys the PHP API from [`render.yaml`](render.yaml) using the included [`Dockerfile`](Dockerfile). The frontend is configured to call `https://currency-converter-api-nvun.onrender.com/api/convert.php`.
 - The Render service's `CORS_ALLOWED_ORIGINS` environment variable allows the GitHub Pages origin. If the Render service receives a different hostname, update both this setting and `CONVERSION_API_URL` in [`js/script.js`](js/script.js).
